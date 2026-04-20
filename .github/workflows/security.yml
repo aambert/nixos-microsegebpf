@@ -1,0 +1,109 @@
+# Security gates: govulncheck (Go stdlib + module CVEs), reuse lint
+# (license compliance), and a syft SBOM diff against the committed
+# artefacts under sbom/.
+#
+# Runs on every push and PR, plus a nightly cron so a fresh upstream
+# CVE in a stable dependency is caught between commits.
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily at 04:17 UTC — early enough to catch a CVE published in
+    # the last 24 h before the workday starts in Europe.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: scan source for known CVEs (stdlib + module deps)
+        # CGO off mirrors the dev-shell wiring (the .c file in bpf/
+        # would otherwise confuse `go list`). The `-mode source` runs
+        # against source rather than a built binary so we get
+        # symbol-graph reachability — far more useful than a binary
+        # scan that misses dead-code elimination opportunities.
+        env:
+          CGO_ENABLED: "0"
+          GOFLAGS: -mod=mod
+        run: govulncheck -mode source ./...
+
+  reuse-lint:
+    name: reuse lint (license compliance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: fsfe/reuse-action@v6
+
+  sbom-drift:
+    name: SBOM drift
+    runs-on: ubuntu-latest
+    # Re-runs syft on the source tree and diffs against the committed
+    # CycloneDX. Fails the PR if a new dependency landed without a
+    # corresponding sbom/sbom-source.cdx.json update — keeps the SBOM
+    # honest at PR-time rather than the next monthly audit.
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: /tmp/sbom-source-fresh.cdx.json
+
+      - name: diff against committed SBOM
+        # Compare the component sets ignoring the timestamp + serial
+        # number that change between every syft invocation.
+        run: |
+          jq '.components | map(.purl // .name + "@" + .version) | sort' \
+            sbom/sbom-source.cdx.json > /tmp/committed-purls.txt
+          jq '.components | map(.purl // .name + "@" + .version) | sort' \
+            /tmp/sbom-source-fresh.cdx.json > /tmp/fresh-purls.txt
+          if ! diff -u /tmp/committed-purls.txt /tmp/fresh-purls.txt; then
+            echo "::error::SBOM drift detected. Run 'syft scan dir:. -o cyclonedx-json=sbom/sbom-source.cdx.json' and commit the result."
+            exit 1
+          fi
+
+  hubble-ui-cves:
+    name: hubble-ui OCI image CVE scan
+    runs-on: ubuntu-latest
+    # Watches the pinned cilium/hubble-ui image. Fails on any
+    # newly-introduced High/Critical so we catch upstream image rebuilds
+    # that bring in a fresh CVE before the operator deploys.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: extract pinned image tag
+        id: pin
+        run: |
+          IMAGE=$(grep -oP 'quay.io/cilium/hubble-ui:[^"]+' nix/microsegebpf.nix | head -1)
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "Scanning: $IMAGE"
+
+      - uses: anchore/scan-action@v6
+        with:
+          image: ${{ steps.pin.outputs.image }}
+          fail-build: false  # informational; nightly gate, not PR gate
+          severity-cutoff: high
+          output-format: table

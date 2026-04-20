@@ -1,0 +1,275 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:133f9720-c8e3-4033-b4fd-b1466ef5fa33",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-04-20T10:22:18+02:00",
+    "tools": [
+      {
+        "vendor": "CycloneDX",
+        "name": "cyclonedx-gomod",
+        "version": "v0.0.0-unknown",
+        "hashes": [
+          {
+            "alg": "MD5",
+            "content": "02c0459f8e7d69ac4ad5a66b1529692d"
+          },
+          {
+            "alg": "SHA-1",
+            "content": "8c8cd582b65d31d94c2bacc17b4dedd1a9c1f4e2"
+          },
+          {
+            "alg": "SHA-256",
+            "content": "6547d11aa7c6c8acd69d67b57b2474ee8f7d9dd3674787560c281fe6c77c86a1"
+          },
+          {
+            "alg": "SHA-384",
+            "content": "3e0a12f512b4d5bdfa2c4d9f44788860dbd8af43f7c5fafe3e46eeab190dc3fb82f0e1c4be2fad6f8a0d5bc25ba3182f"
+          },
+          {
+            "alg": "SHA-512",
+            "content": "5d9f90f3813319b3fee390f63d8e3c94ba78ca738e31a89778217af935fbd4ef9c663d0dfcb551d55feef4e2dbf483de2e1ee148de2978eb78f92a55987b9681"
+          }
+        ],
+        "externalReferences": [
+          {
+            "url": "https://github.com/CycloneDX/cyclonedx-gomod",
+            "type": "vcs"
+          },
+          {
+            "url": "https://cyclonedx.org",
+            "type": "website"
+          }
+        ]
+      }
+    ],
+    "component": {
+      "bom-ref": "pkg:golang/github.com/aambert/nixos-microsegebpf?type=module",
+      "type": "application",
+      "name": "github.com/aambert/nixos-microsegebpf",
+      "purl": "pkg:golang/github.com/aambert/nixos-microsegebpf?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/aambert/nixos-microsegebpf",
+          "type": "vcs"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:golang/github.com/cilium/cilium@v1.19.3?type=module",
+      "type": "library",
+      "name": "github.com/cilium/cilium",
+      "version": "v1.19.3",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7e826b1cf938e47c2c84e77c41ffe4a6d7fd2713df3724a42032ac7ad65af7e6"
+        }
+      ],
+      "purl": "pkg:golang/github.com/cilium/cilium@v1.19.3?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/cilium/cilium",
+          "type": "vcs"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/cilium/ebpf@v0.20.1-0.20260218191617-ee67e7f43dd9?type=module",
+      "type": "library",
+      "name": "github.com/cilium/ebpf",
+      "version": "v0.20.1-0.20260218191617-ee67e7f43dd9",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8505bb9f978fb7f1c381e64b7324f7a4510dc9f6babe668653b33eb6ada96bae"
+        }
+      ],
+      "purl": "pkg:golang/github.com/cilium/ebpf@v0.20.1-0.20260218191617-ee67e7f43dd9?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/cilium/ebpf",
+          "type": "vcs"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/net@v0.49.0?type=module",
+      "type": "library",
+      "name": "golang.org/x/net",
+      "version": "v0.49.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "79e1c598e1944ed69a3d218d9a304aa5b9e0f4cba542c2544505007d4c18fbea"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/net@v0.49.0?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/sys@v0.40.0?type=module",
+      "type": "library",
+      "name": "golang.org/x/sys",
+      "version": "v0.40.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0c1659a89d9192697a40c42c672c2d9e39e71af1f36ba0537d815663d9231164"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/sys@v0.40.0?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/text@v0.33.0?type=module",
+      "type": "library",
+      "name": "golang.org/x/text",
+      "version": "v0.33.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0779e3505caab470d42398cc9f5608af9074204d94d2a724d38afa77828f0311"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/text@v0.33.0?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260120221211-b8f7ae30c516?type=module",
+      "type": "library",
+      "name": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20260120221211-b8f7ae30c516",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b0dad6a24b263b21796ef25472799b7809908bc6da361aa0e4859a23796542a5"
+        }
+      ],
+      "purl": "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260120221211-b8f7ae30c516?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/google.golang.org/grpc@v1.80.0?type=module",
+      "type": "library",
+      "name": "google.golang.org/grpc",
+      "version": "v1.80.0",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5ebea6d9699664b113bd436f21499e0f93806a0330dc588a98c953755896b073"
+        }
+      ],
+      "purl": "pkg:golang/google.golang.org/grpc@v1.80.0?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module",
+      "type": "library",
+      "name": "google.golang.org/protobuf",
+      "version": "v1.36.11",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7d5e99c21368703c812cad1d8fe7e0f1e92d7157a0041b84a25a5b4d0c813551"
+        }
+      ],
+      "purl": "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module\u0026goos=linux\u0026goarch=amd64"
+    },
+    {
+      "bom-ref": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module",
+      "type": "library",
+      "name": "gopkg.in/yaml.v3",
+      "version": "v3.0.1",
+      "scope": "required",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7f1566fc6cc0cc45aa2c7baf72d23dd4a4bd8613669963a85aed174d8252ec20"
+        }
+      ],
+      "purl": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module\u0026goos=linux\u0026goarch=amd64",
+      "externalReferences": [
+        {
+          "url": "https://github.com/go-yaml/yaml",
+          "type": "vcs"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:golang/github.com/aambert/nixos-microsegebpf?type=module",
+      "dependsOn": [
+        "pkg:golang/github.com/cilium/cilium@v1.19.3?type=module",
+        "pkg:golang/github.com/cilium/ebpf@v0.20.1-0.20260218191617-ee67e7f43dd9?type=module",
+        "pkg:golang/golang.org/x/sys@v0.40.0?type=module",
+        "pkg:golang/google.golang.org/grpc@v1.80.0?type=module",
+        "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module",
+        "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/github.com/cilium/cilium@v1.19.3?type=module",
+      "dependsOn": [
+        "pkg:golang/github.com/cilium/ebpf@v0.20.1-0.20260218191617-ee67e7f43dd9?type=module",
+        "pkg:golang/golang.org/x/net@v0.49.0?type=module",
+        "pkg:golang/golang.org/x/sys@v0.40.0?type=module",
+        "pkg:golang/golang.org/x/text@v0.33.0?type=module",
+        "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260120221211-b8f7ae30c516?type=module",
+        "pkg:golang/google.golang.org/grpc@v1.80.0?type=module",
+        "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module",
+        "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/github.com/cilium/ebpf@v0.20.1-0.20260218191617-ee67e7f43dd9?type=module",
+      "dependsOn": [
+        "pkg:golang/golang.org/x/net@v0.49.0?type=module",
+        "pkg:golang/golang.org/x/sys@v0.40.0?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/golang.org/x/net@v0.49.0?type=module",
+      "dependsOn": [
+        "pkg:golang/golang.org/x/sys@v0.40.0?type=module",
+        "pkg:golang/golang.org/x/text@v0.33.0?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/golang.org/x/sys@v0.40.0?type=module"
+    },
+    {
+      "ref": "pkg:golang/golang.org/x/text@v0.33.0?type=module"
+    },
+    {
+      "ref": "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260120221211-b8f7ae30c516?type=module",
+      "dependsOn": [
+        "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/google.golang.org/grpc@v1.80.0?type=module",
+      "dependsOn": [
+        "pkg:golang/golang.org/x/net@v0.49.0?type=module",
+        "pkg:golang/golang.org/x/sys@v0.40.0?type=module",
+        "pkg:golang/golang.org/x/text@v0.33.0?type=module",
+        "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260120221211-b8f7ae30c516?type=module",
+        "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module"
+      ]
+    },
+    {
+      "ref": "pkg:golang/google.golang.org/protobuf@v1.36.11?type=module"
+    },
+    {
+      "ref": "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
+    }
+  ]
+}

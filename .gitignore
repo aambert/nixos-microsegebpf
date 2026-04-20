@@ -22,3 +22,8 @@ result-*
 .vscode/
 *.swp
 *.swo
+
+# sbomnix / vulnix HTTP cache for the NVD feed — left as a side
+# effect of running `sbomnix --include-vulns` from the repo root.
+# Keep out of the SBOM commit.
+http_cache.sqlite

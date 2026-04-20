@@ -1,0 +1,116 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "version": 1,
+  "serialNumber": "urn:uuid:3c26e3aa-4e37-463e-a1b4-3d93eea85aac",
+  "metadata": {
+    "timestamp": "2026-04-20T10:23:12.929829+02:00",
+    "properties": [
+      {
+        "name": "sbom_type",
+        "value": "runtime_only"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "TII",
+        "name": "sbomnix",
+        "version": "1.7.4"
+      }
+    ],
+    "component": {
+      "type": "library",
+      "bom-ref": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "name": "microseg-agent",
+      "version": "0.1.0",
+      "purl": "pkg:nix/microseg-agent@0.1.0",
+      "cpe": "cpe:2.3:a:microseg-agent:microseg-agent:0.1.0:*:*:*:*:*:*:*",
+      "properties": [
+        {
+          "name": "nix:output_path",
+          "value": "/nix/store/41sjjf76sq17ailywa5gb6k1crism2q8-microseg-agent-0.1.0"
+        },
+        {
+          "name": "nix:drv_path",
+          "value": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "/nix/store/55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv",
+      "name": "iana-etc",
+      "version": "20250505",
+      "purl": "pkg:nix/iana-etc@20250505",
+      "cpe": "cpe:2.3:a:iana-etc:iana-etc:20250505:*:*:*:*:*:*:*",
+      "properties": [
+        {
+          "name": "nix:output_path",
+          "value": "/nix/store/mih50m019amm7my9041wp9vjjyzc41lg-iana-etc-20250505"
+        },
+        {
+          "name": "nix:drv_path",
+          "value": "/nix/store/55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "/nix/store/s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv",
+      "name": "mailcap",
+      "version": "2.1.54",
+      "purl": "pkg:nix/mailcap@2.1.54",
+      "cpe": "cpe:2.3:a:mailcap:mailcap:2.1.54:*:*:*:*:*:*:*",
+      "properties": [
+        {
+          "name": "nix:output_path",
+          "value": "/nix/store/7mbancpp4llb2jhnxiwipp9qb8nm31yz-mailcap-2.1.54"
+        },
+        {
+          "name": "nix:drv_path",
+          "value": "/nix/store/s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "/nix/store/74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv",
+      "name": "tzdata",
+      "version": "2026a",
+      "purl": "pkg:nix/tzdata@2026a",
+      "cpe": "cpe:2.3:a:tzdata:tzdata:2026a:*:*:*:*:*:*:*",
+      "properties": [
+        {
+          "name": "nix:output_path",
+          "value": "/nix/store/k50yfm9fm62s4h9c1shs0dwwl4y28a78-tzdata-2026a"
+        },
+        {
+          "name": "nix:drv_path",
+          "value": "/nix/store/74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "/nix/store/55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv"
+    },
+    {
+      "ref": "/nix/store/s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv"
+    },
+    {
+      "ref": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "dependsOn": [
+        "/nix/store/55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv",
+        "/nix/store/74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv",
+        "/nix/store/s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv"
+      ]
+    },
+    {
+      "ref": "/nix/store/74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv"
+    }
+  ],
+  "vulnerabilities": []
+}

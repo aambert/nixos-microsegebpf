@@ -1,0 +1,117 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SPDXRef-nix-store-ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+  "documentNamespace": "sbomnix://3c26e3aa-4e37-463e-a1b4-3d93eea85aac",
+  "creationInfo": {
+    "created": "2026-04-20T10:23:57.421073+02:00",
+    "creators": [
+      "Tool: sbomnix-1.7.4"
+    ]
+  },
+  "comment": "included dependencies: 'runtime_only'",
+  "packages": [
+    {
+      "name": "iana-etc",
+      "SPDXID": "SPDXRef-nix-store-55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv",
+      "versionInfo": "20250505",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "SECURITY",
+          "referenceType": "cpe23Type",
+          "referenceLocator": "cpe:2.3:a:iana-etc:iana-etc:20250505:*:*:*:*:*:*:*"
+        },
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:nix/iana-etc@20250505"
+        }
+      ]
+    },
+    {
+      "name": "mailcap",
+      "SPDXID": "SPDXRef-nix-store-s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv",
+      "versionInfo": "2.1.54",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "SECURITY",
+          "referenceType": "cpe23Type",
+          "referenceLocator": "cpe:2.3:a:mailcap:mailcap:2.1.54:*:*:*:*:*:*:*"
+        },
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:nix/mailcap@2.1.54"
+        }
+      ]
+    },
+    {
+      "name": "microseg-agent",
+      "SPDXID": "SPDXRef-nix-store-ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "SECURITY",
+          "referenceType": "cpe23Type",
+          "referenceLocator": "cpe:2.3:a:microseg-agent:microseg-agent:0.1.0:*:*:*:*:*:*:*"
+        },
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:nix/microseg-agent@0.1.0"
+        }
+      ]
+    },
+    {
+      "name": "tzdata",
+      "SPDXID": "SPDXRef-nix-store-74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv",
+      "versionInfo": "2026a",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "SECURITY",
+          "referenceType": "cpe23Type",
+          "referenceLocator": "cpe:2.3:a:tzdata:tzdata:2026a:*:*:*:*:*:*:*"
+        },
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:nix/tzdata@2026a"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-nix-store-ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-nix-store-55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv"
+    },
+    {
+      "spdxElementId": "SPDXRef-nix-store-ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-nix-store-74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv"
+    },
+    {
+      "spdxElementId": "SPDXRef-nix-store-ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-nix-store-s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv"
+    }
+  ]
+}

@@ -18,6 +18,8 @@ path = [
   "flake.lock",
   "examples/*.yaml",
   "*.md",
+  "sbom/*.json",
+  "sbom/*.csv",
 ]
 
 # CO-RE / BTF artefacts derived from the running kernel are
