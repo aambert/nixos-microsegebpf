@@ -151,26 +151,28 @@ quitte le poste (ou avant qu'il soit délivré, en ingress).
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'12px'}}}%%
 flowchart TB
 
+GIT["Flake GitOps central<br/>services.microsegebpf - meme module NixOS<br/>+ meme bundle de policies sur chaque poste"]
+
 subgraph LAN["LAN corporate 10.0.0.0/24 - L2 plat, pas de firewall entre postes"]
   direction LR
-  subgraph WSA["Poste-A 10.0.0.10 + microsegebpf-agent"]
+  subgraph WSA["Poste NixOS A 10.0.0.10<br/>nixos-rebuild switch + microsegebpf-agent"]
     direction TB
     A_FF["Firefox<br/>app-firefox.scope"]
     A_APT["apt<br/>system.slice"]
     A_SSH["sshd.service"]
   end
-  subgraph WSB["Poste-B 10.0.0.20 + microsegebpf-agent"]
+  subgraph WSB["Poste NixOS B 10.0.0.20<br/>nixos-rebuild switch + microsegebpf-agent"]
     direction TB
     B_FF["Firefox"]
     B_OFF["LibreOffice"]
     B_SSH["sshd.service"]
   end
-  subgraph WSC["Poste-C 10.0.0.30 + microsegebpf-agent"]
+  subgraph WSC["Poste NixOS C 10.0.0.30<br/>nixos-rebuild switch + microsegebpf-agent"]
     direction TB
     C_DEV["VS Code"]
     C_SSH["sshd.service"]
   end
-  BAS["Bastion 10.0.0.42<br/>jump host corporate"]
+  BAS["Bastion 10.0.0.42<br/>jump host corporate<br/>(n'importe quel OS, pas d'agent requis)"]
 end
 
 GW["Passerelle internet / NAT"]
@@ -182,6 +184,10 @@ subgraph NET["Internet"]
   DOH["1.1.1.1 DoH:443"]
   FBC["CDN Facebook<br/>fbcdn.net:443"]
 end
+
+GIT -- "deploy-rs / colmena / morph" --> WSA
+GIT -- "deploy-rs / colmena / morph" --> WSB
+GIT -- "deploy-rs / colmena / morph" --> WSC
 
 WSA -- "DROP SMB:445" --> WSB
 WSA -- "DROP ssh depuis pair" --> WSC
@@ -201,17 +207,26 @@ GW --> REPO
 GW -. droppe .-> DOH
 GW -. droppe .-> FBC
 
+style GIT fill:#FCE7F3,stroke:#9D174D,stroke-width:2px
 style LAN fill:#FEF3C7,stroke:#92400E,stroke-width:2px
 style WSA fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style WSB fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style WSC fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
-style BAS fill:#DBEAFE,stroke:#1E3A8A,stroke-width:1.5px
+style BAS fill:#E5E7EB,stroke:#475569,stroke-width:1.5px,stroke-dasharray: 4 2
 style GW fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
 style NET fill:#F3F4F6,stroke:#475569,stroke-width:1.5px
 ```
 
 Ce que ça montre :
 
+  * **Chaque poste est NixOS.** Le même flake déclare le module
+    `services.microsegebpf` + le même bundle de policies sur
+    Poste-A, Poste-B, Poste-C ; `nixos-rebuild switch` (ou
+    `deploy-rs` / `colmena` / `morph`) propage un changement de
+    policy à tout le parc en un push. Le bastion peut être
+    n'importe quel OS et n'a pas besoin de l'agent — c'est juste
+    une *source* de trafic ingress autorisé, pas un pair à
+    policer.
   * **Le mouvement latéral est contenu.** Poste-A qui essaie de
     SMB-scan Poste-B, ou d'ouvrir une session SSH contre Poste-C,
     se fait dropper par le hook ingress de Poste-B et Poste-C
