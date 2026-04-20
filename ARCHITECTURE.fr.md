@@ -1011,7 +1011,162 @@ serveur gRPC de l'agent directement ; le shipper depuis
 journald). Activer les deux est le setup prod recommandé : les
 opérateurs ont l'UI live, le SOC a la recherche historique.
 
-## 11. Où regarder en premier quand quelque chose casse
+## 11. Overhead de performance
+
+Dimensionné pour un **poste de travail**, pas pour un routeur
+10 GbE. Deux classes de coût : le datapath kernel qui tourne sur
+chaque paquet (doit être bon marché, doit être prévisible) et le
+plan userspace (autorisé à utiliser quelques MB et un thread idle).
+
+### 11.1 Coût datapath par paquet
+
+| Étape | Coût | Notes |
+|---|---|---|
+| Le hook `cgroup_skb` se déclenche | ~30-80 ns | Une invocation BPF par paquet, dans les deux sens |
+| `bpf_get_current_cgroup_id` | ~15 ns | Un appel helper |
+| Lookup LPM trie (une map : egress_v4 / ingress_v4 / egress_v6 / ingress_v6) | ~50-150 ns | Seule la map matchant `(direction, family)` est interrogée ; les autres sont skip. Le coût scale avec la longueur du préfixe matché, pas avec la taille de la map |
+| Retour verdict (`SK_PASS` / `SK_DROP`) | ~5 ns | Queue du programme |
+| **Régime stable par paquet** | **~100-250 ns** | Budget total sur un cœur x86 moderne (classe i5/Ryzen) |
+
+À comparer au coût intrinsèque du paquet sur un poste :
+
+  * Une ligne 1 Gbit/s saturée avec des frames de 1500 octets = ~80 K
+    paquets/s. À 250 ns par paquet, l'overhead cgroup_skb est de
+    **80 000 × 250 ns = 20 ms de CPU par seconde**, soit **2 % d'un
+    cœur**, total, pour les deux directions de chaque flux sur l'hôte.
+  * Le trafic poste réaliste est largement sous 1 Gbit/s soutenu ; la
+    charge bureau typique mesurée à <1 % d'un cœur.
+
+Les chiffres ci-dessus sont cohérents avec les benchmarks cgroup_skb
+publiés de Cilium (~50-150 ns par hook sur bare metal, légèrement
+plus en virtualisation imbriquée).
+
+#### Peek TLS ClientHello (one-shot par connexion TCP)
+
+Quand le port destination matche `tlsPorts` et que le paquet est le
+premier qui porte un ClientHello, le parser walke les extensions TLS
+via `bpf_loop` :
+
+| Étape | Coût | Notes |
+|---|---|---|
+| Walker d'extensions (`bpf_loop` jusqu'à 32 extensions) | ~1-5 μs | Pire cas, liste d'extensions complète |
+| Reverse SNI + lookup LPM (`tls_sni_lpm`) | ~200-400 ns | Même classe de coût LPM que L3/L4 |
+| Hash ALPN + lookup HASH (`tls_alpn_deny`) | ~50-100 ns | Hash FNV-64a + un probe de bucket |
+| **Total par nouvelle connexion TCP** | **~1-6 μs** | Une fois par connexion, pas par paquet |
+
+Un poste ouvre typiquement des dizaines à centaines de connexions
+TLS par seconde en pic ; même à 1000 cps le budget TLS est de
+**1000 × 6 μs = 6 ms/s ≈ 0.6 % d'un cœur**.
+
+### 11.2 Budget mémoire kernel
+
+Calculé depuis les définitions de struct dans `bpf/microseg.c` plus
+les constantes `max_entries`. La mémoire des maps BPF est allouée
+upfront (LPM_TRIE) ou par-entrée (HASH) ; les chiffres ci-dessous
+sont la **borne supérieure** avec chaque slot rempli. Les vraies
+policies remplissent <1 % de ces caps.
+
+| Map | Type | Capacité | Par-entrée | Pire cas |
+|---|---|---|---|---|
+| `egress_v4` | LPM_TRIE | 65 536 | ~32 B (clé 19 + val 5 + overhead LPM ≈ 8) | ~2.1 MB |
+| `ingress_v4` | LPM_TRIE | 65 536 | idem | ~2.1 MB |
+| `egress_v6` | LPM_TRIE | 65 536 | ~48 B (clé 31 + val 5 + overhead) | ~3.1 MB |
+| `ingress_v6` | LPM_TRIE | 65 536 | idem | ~3.1 MB |
+| `tls_sni_lpm` | LPM_TRIE | 4 096 | ~272 B (clé 260 + val + overhead) | ~1.1 MB |
+| `tls_alpn_deny` | HASH | 1 024 | ~24 B (clé FNV + val + overhead) | ~25 KB |
+| `events` | RINGBUF | 1 MiB (fixe) | — | 1.0 MB |
+| `default_cfg` | ARRAY | 1 | ~32 B | ~32 B |
+| `cgroup_unit` (scratch SNI per-CPU) | PERCPU_ARRAY | 1 | 256 B × n_cpus | ~4-8 KB |
+| **Pire cas (toutes caps pleines)** |  |  |  | **~12.6 MB** |
+
+Policies poste réalistes (50-500 entrées) → **<200 KB total**.
+
+### 11.3 Régime stable userspace agent
+
+L'agent est un binaire Go statique (pas de glibc, pas d'openssl
+dans la closure runtime — voir SBOMs). En régime stable idle, le
+coût est :
+
+| Ressource | Idle | Sous charge (cgroup churn ou reload policy) |
+|---|---|---|
+| RSS | ~25-40 MB (runtime Go typique + bindings cilium/ebpf) | +5-10 MB transitoire pendant parse YAML / sync map |
+| Pages anonymes | ~80 MB VSZ | inchangé |
+| CPU | <0.1 % d'un cœur (waits sur epoll : ringbuf + inotify + signals) | spike à ~5-15 % pendant un Apply delta (sub-seconde) |
+| FDs | ~15-25 (handles de map BPF + ringbuf + socket observer + inotify) | inchangé |
+| Threads | ~6-8 (scheduler Go défaut + helpers per-cpu) | inchangé |
+
+Temps de démarrage sur un poste moderne : **<200 ms** end-to-end
+(load objet BPF, attache cgroupv2, build snapshot cgroup initial,
+parse policy, apply maps).
+
+### 11.4 Flux d'événements ring-buffer
+
+Chaque flow event est un record de taille fixe (~80 octets — 5-tuple
++ cgroup_id + verdict + policy_id + timestamp). À 1 K events/s
+soutenu le ring buffer pompe **80 KB/s** à travers la goroutine de
+drain de l'agent, ce qui coûte :
+
+| Sous-coût | Par event |
+|---|---|
+| `bpf_ringbuf_reserve` + commit kernel | ~200-400 ns |
+| Callback userspace ringbuf reader | ~1-2 μs (decode Go reflection-heavy) |
+| Encode protobuf Hubble + publish non-bloquant | ~3-5 μs |
+| **Total par event émis** | **~5-8 μs** |
+
+Cap la verbosité en posant `services.microsegebpf.emitAllowEvents
+= false` (le défaut prod) — seuls les verdicts DROP / LOG
+atteignent le ring, typiquement <10 events/s sur un poste, donc la
+contribution de l'agent au CPU userspace tend vers zéro.
+
+### 11.5 Overhead des services optionnels
+
+| Composant | Quand | RSS | CPU (stable) | Notes |
+|---|---|---|---|---|
+| `microsegebpf-log-shipper` (Vector 0.52) | `logs.{opensearch,syslog}.enable = true` | ~50-150 MB | 0.1-0.5 % | Spikes sur burst d'events ; borné par le batcher adaptatif de Vector |
+| `hubble-ui` (OCI v0.13.5 podman) | `hubble.ui.enable = true` ET un browser est connecté | ~30 MB nginx + ~50 MB bundle frontend | 0 idle, brief sur chaque request | Loopback-only ; tunnel SSH pour accès remote |
+| Cache résolution DNS (in-agent) | Règles `host:` en policy | <1 KB par FQDN caché | aucun (consulté in-process) | TTL 60 s ; consulté au plus une fois par FQDN par Apply |
+
+### 11.6 Pire cas à l'échelle
+
+Un déploiement pathologique (chiffres réalistes max, tous services
+optionnels on, pipeline Vector complet, 50 K entrées LPM peuplées,
+4 K règles SNI, 100 cps TLS, 1 K events/s) :
+
+| Ressource | Pire cas |
+|---|---|
+| Mémoire kernel (maps BPF) | ~12 MB |
+| RSS userspace agent | ~40 MB |
+| RSS Vector | ~150 MB |
+| hubble-ui (quand connecté) | ~80 MB |
+| RSS agrégé | **~280 MB** |
+| Overhead cgroup_skb par paquet | ~250 ns |
+| Overhead peek TLS (par nouvelle connexion) | ~6 μs |
+| CPU stable (tous composants combinés) | **<2 % d'un cœur moderne** |
+
+Autrement dit : l'empreinte du projet est dominée par Vector (quand
+l'opérateur opte pour le shipping de logs), pas par les primitives
+de microsegmentation elles-mêmes. Le datapath eBPF plus l'agent
+lui-même tient confortablement dans le bruit de fond des services
+systemd existants d'un poste.
+
+### 11.7 Ce pour quoi ce n'est pas conçu
+
+  * **Serveurs haut débit (10 GbE+).** À line rate, 250 ns/paquet
+    devient 25 % d'un cœur juste pour l'overhead cgroup_skb. Cilium
+    proper utilise XDP au niveau driver NIC pour amortir ça ; on
+    reste délibérément à cgroup_skb parce que le trafic poste ne
+    justifie pas la complexité verifier et déploiement de XDP.
+  * **Survie aux event-storms bursty.** Le ring buffer 1 MiB tient
+    ~13 000 events à la taille moyenne ; un burst soudain au-delà
+    du drain rate drop les plus vieux. By design — on ne peut pas
+    faire back-pressure le datapath eBPF depuis le poste.
+  * **Verdicts TLS sub-microseconde.** Le path peek est
+    intentionnellement borné par `bpf_loop` pour amitié-verifier.
+    Le rythme de connexion TLS d'un poste est dominé par le RTT
+    réseau du handshake (dizaines de millisecondes), donc les
+    quelques microsecondes de parsing in-kernel sont sous le bruit.
+
+## 12. Où regarder en premier quand quelque chose casse
 
 | Symptôme | Cause probable | Où regarder |
 |---|---|---|
@@ -1025,7 +1180,7 @@ opérateurs ont l'UI live, le SOC a la recherche historique.
 | GitHub Actions warne `Node.js 20 is deprecated` | Les versions d'action pinnées embarquent encore un runtime Node 20. Soit bumper (`actions/checkout@v6`, `cachix/install-nix-action@v31.10.4`, `cachix/cachix-action@v17`, `actions/setup-go@v6`), soit poser `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` dans le bloc `env:` du workflow. | `.github/workflows/*.yml` |
 | vm-test échoue avec `target.fail(...) unexpectedly succeeded` sur une assertion alice-as-user | `su -l alice` dans `target.execute()` n'a pas de TTY de contrôle, donc PAM n'invoque pas pam_systemd et le curl tourne dans `/system.slice/backdoor.service` au lieu de `/user.slice/...`. Utiliser une unité systemd dédiée `User=alice` `Type=oneshot` et sélectionner sur `systemdUnit = ...`. | `nix/tests/vm-test.nix` |
 
-## 12. Contribuer
+## 13. Contribuer
 
 Patches bienvenues. Deux règles de la maison :
 

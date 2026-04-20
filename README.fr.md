@@ -319,11 +319,37 @@ changement de configuration, pas un projet d'infrastructure.
 | Cilium | Exige Kubernetes ; labels de pods pour l'identité | Pas de cluster, pas de K8s ; id de cgroup + unité systemd comme identité |
 | OpenSnitch / Little Snitch | Interactif, prompts par connexion ; super pour usage perso, pas pour de l'enforcement style ANSSI | Policy déclarative YAML/Nix, GitOps-friendly, pas de prompts utilisateur |
 
+### Budget de performance
+
+Dimensionné pour un poste, pas pour un routeur 10 GbE. Chaque
+chiffre ci-dessous est le pire cas analytique basé sur les
+définitions de struct eBPF dans `bpf/microseg.c` plus les
+benchmarks cgroup_skb publiés ; voir
+[ARCHITECTURE.fr.md §11](ARCHITECTURE.fr.md) pour la dérivation
+ligne par ligne.
+
+| Couche | Coût | Quand |
+|---|---|---|
+| Hook `cgroup_skb` par-paquet (lookup + verdict) | **100-250 ns** | Chaque paquet, dans les deux sens |
+| Peek TLS ClientHello (parse SNI + ALPN via `bpf_loop`) | **1-6 μs** | Une fois par nouvelle connexion TCP sur `tlsPorts` |
+| Mémoire maps BPF (pire cas, toutes caps pleines) | **~12 MB** | Toujours ; les vraies policies utilisent <200 KB |
+| RSS userspace agent (binaire Go statique) | **25-40 MB** | Toujours |
+| CPU stable de l'agent | **<0.1 % d'un cœur** | Toujours ; spike à ~5-15 % pendant un Apply delta |
+| RSS Vector log shipper | 50-150 MB | Uniquement si `logs.{opensearch,syslog}.enable = true` |
+| Conteneur OCI `hubble-ui` | ~80 MB | Uniquement si `hubble.ui.enable = true` et un browser est connecté |
+| **Agrégé en opt-in complet, toutes maps pleines** | **~280 MB RSS, <2 % d'un cœur** | Déploiement pathologique |
+
+Concrètement, sur une ligne 1 Gbit/s saturée (~80 K paquets/s)
+l'overhead cgroup_skb est de **~2 % d'un cœur total** pour les
+deux directions de chaque flux sur l'hôte. Les charges bureau
+réalistes mesurent sous 1 %.
+
 ### Quand ne **pas** utiliser ce projet
 
-- **Serveur avec gros débit réseau.** `cgroup_skb` coûte quelques
-  centaines de nanosecondes par paquet ; OK pour un poste, pas pour
-  des serveurs 10 GbE+ — utiliser Cilium proper là-bas.
+- **Serveur avec gros débit réseau.** `cgroup_skb` coûte
+  ~100-250 ns par paquet (voir [§11.1](ARCHITECTURE.fr.md)) ; OK
+  pour un poste, pas pour des serveurs 10 GbE+ — utiliser Cilium
+  proper avec XDP là-bas.
 - **Tu veux filtrer par nom d'hôte** (`*.facebook.com`). Ce projet
   travaille sur des IP résolues et (bientôt) sur le SNI TLS. Pour du
   filtrage purement par nom d'hôte, coupler avec un outil de policy

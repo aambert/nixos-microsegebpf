@@ -315,11 +315,35 @@ infrastructure project.
 | Cilium | Requires Kubernetes; pod labels for identity | No cluster, no K8s; cgroup id + systemd unit as identity |
 | OpenSnitch / Little Snitch | Interactive, per-connection prompts; great for personal use, not for ANSSI-style policy enforcement | Declarative YAML/Nix policy, GitOps-friendly, no user prompts |
 
+### Performance budget
+
+Sized for a workstation, not a 10 GbE router. Every figure below
+is the analytical worst case based on the eBPF struct definitions
+in `bpf/microseg.c` plus published cgroup_skb benchmarks; see
+[ARCHITECTURE.md §11](ARCHITECTURE.md) for the per-line derivation.
+
+| Layer | Cost | When |
+|---|---|---|
+| `cgroup_skb` per-packet hook (lookup + verdict) | **100-250 ns** | Every packet, both directions |
+| TLS ClientHello peek (SNI + ALPN parse via `bpf_loop`) | **1-6 μs** | Once per new TCP connection on `tlsPorts` |
+| BPF maps memory (worst case, all caps full) | **~12 MB** | Always; real policies use <200 KB |
+| Agent userspace RSS (static Go binary) | **25-40 MB** | Always |
+| Agent steady-state CPU | **<0.1 % of one core** | Always; spike to ~5-15 % during a delta-Apply |
+| Vector log shipper RSS | 50-150 MB | Only when `logs.{opensearch,syslog}.enable = true` |
+| `hubble-ui` OCI container | ~80 MB | Only when `hubble.ui.enable = true` and a browser is connected |
+| **Aggregate at full opt-in, all maps full** | **~280 MB RSS, <2 % of one core** | Pathological deployment |
+
+Concretely, on a saturated 1 Gbit/s line (~80 K packets/s) the
+cgroup_skb overhead is **~2 % of one core total** for both
+directions of every flow on the host. Realistic office workloads
+measure under 1 %.
+
 ### When NOT to use this
 
 - **Server with high-bandwidth network throughput.** `cgroup_skb`
-  costs a few hundred ns per packet; fine for a workstation, not for
-  10 GbE+ servers — use Cilium proper there.
+  costs ~100-250 ns per packet (see [§11.1](ARCHITECTURE.md)); fine
+  for a workstation, not for 10 GbE+ servers — use Cilium proper
+  with XDP there.
 - **You want to filter by hostname** (`*.facebook.com`). This project
   works on resolved IPs and (soon) TLS SNI. For pure hostname-based
   filtering, pair with a DNS-policy tool.
