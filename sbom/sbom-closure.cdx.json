@@ -2,9 +2,9 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
   "version": 1,
-  "serialNumber": "urn:uuid:3c26e3aa-4e37-463e-a1b4-3d93eea85aac",
+  "serialNumber": "urn:uuid:17ccb40e-d68a-44c8-9e2c-4fef9d6b8b9f",
   "metadata": {
-    "timestamp": "2026-04-20T10:23:12.929829+02:00",
+    "timestamp": "2026-04-20T11:19:27.778673+02:00",
     "properties": [
       {
         "name": "sbom_type",
@@ -20,7 +20,7 @@
     ],
     "component": {
       "type": "library",
-      "bom-ref": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "bom-ref": "/nix/store/d4fp0ynxigxb5ifwwj7gpl46l6pfbg2i-microseg-agent-0.1.0.drv",
       "name": "microseg-agent",
       "version": "0.1.0",
       "purl": "pkg:nix/microseg-agent@0.1.0",
@@ -28,11 +28,11 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/41sjjf76sq17ailywa5gb6k1crism2q8-microseg-agent-0.1.0"
+          "value": "/nix/store/50yazk9ycmikckpjnhsfyf80wna50d2z-microseg-agent-0.1.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv"
+          "value": "/nix/store/d4fp0ynxigxb5ifwwj7gpl46l6pfbg2i-microseg-agent-0.1.0.drv"
         }
       ]
     }
@@ -101,7 +101,7 @@
       "ref": "/nix/store/s0wl2gj84gdfsgx6lryacnnz2fhh19w6-mailcap-2.1.54.drv"
     },
     {
-      "ref": "/nix/store/ljx01yz536451m8sd8yj8wic7hmb6f7f-microseg-agent-0.1.0.drv",
+      "ref": "/nix/store/d4fp0ynxigxb5ifwwj7gpl46l6pfbg2i-microseg-agent-0.1.0.drv",
       "dependsOn": [
         "/nix/store/55cb7nz0d99i7xcm6yk0m2azrw3ijhqa-iana-etc-20250505.drv",
         "/nix/store/74b7nl7s8xa8a4ipi318lj3jrj9avbcb-tzdata-2026a.drv",

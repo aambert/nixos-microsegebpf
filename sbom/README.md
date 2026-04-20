@@ -63,16 +63,24 @@ Different consumers want different things:
 
 ## Coverage notes
 
-- The agent's runtime closure has only 4 components (it's a static Go
-  binary; no glibc, no openssl). The interesting vulnerability surface
-  is in **Vector**, which is a separate process we ship as the log
-  shipper.
-- The Hubble UI OCI image (`quay.io/cilium/hubble-ui:v0.13.2`) is NOT
-  in these SBOMs because it's pulled at runtime by podman, not built
-  by Nix. Scan it directly with `grype quay.io/cilium/hubble-ui:v0.13.2`
-  — see SECURITY-AUDIT.md §4.3.
+- The agent's runtime closure has only 4 components (`iana-etc`,
+  `mailcap`, `microseg-agent`, `tzdata`) — it's a static Go binary;
+  no glibc, no openssl, no curl. The interesting vulnerability
+  surface is in **Vector**, which is a separate process we ship as
+  the log shipper.
+- The Hubble UI OCI image (`quay.io/cilium/hubble-ui:v0.13.5`) is
+  NOT in these SBOMs because it's pulled at runtime by podman, not
+  built by Nix. Scan it directly with
+  `grype quay.io/cilium/hubble-ui:v0.13.5` — see SECURITY-AUDIT.md
+  §4.3.
 - These SBOMs reflect the closures produced by the nixpkgs commit
-  pinned in `flake.lock` at the time of generation. A consumer who
-  pins a different nixpkgs commit will get a different closure with
+  pinned in `flake.lock` (currently `c7f47036` from 2026-04-17, the
+  nixos-25.11 HEAD at the time of generation). A consumer who pins a
+  different nixpkgs commit will get a different closure with
   potentially different CVE exposure — re-scan after every
   `nix flake update`.
+- These v4 SBOMs (post-CVE-remediation) were generated against the
+  flake's locked nixpkgs (Vector 0.52.0, openssl 3.6.1, glibc
+  2.40-218, curl 8.19.0, zlib 1.3.2) — newer than the channel-based
+  SBOMs that the v1 audit was scored against. See SECURITY-AUDIT.md
+  §4.4 for the per-CVE disposition.

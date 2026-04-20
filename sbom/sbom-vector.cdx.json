@@ -2,9 +2,9 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
   "version": 1,
-  "serialNumber": "urn:uuid:d0fc9c6d-f2c5-49a4-ba54-88eacf7c4905",
+  "serialNumber": "urn:uuid:b0052c2e-781b-45aa-9367-de8d104ca731",
   "metadata": {
-    "timestamp": "2026-04-20T10:24:33.840943+02:00",
+    "timestamp": "2026-04-20T11:19:29.738569+02:00",
     "properties": [
       {
         "name": "sbom_type",
@@ -20,19 +20,19 @@
     ],
     "component": {
       "type": "library",
-      "bom-ref": "/nix/store/15f3w17rarp038wv9f8sfb9k8zm8vs8f-vector-0.51.1.drv",
+      "bom-ref": "/nix/store/4fnm5m9d5ny04l6q88qajrjcbr8jsz34-vector-0.52.0.drv",
       "name": "vector",
-      "version": "0.51.1",
-      "purl": "pkg:nix/vector@0.51.1",
-      "cpe": "cpe:2.3:a:vector:vector:0.51.1:*:*:*:*:*:*:*",
+      "version": "0.52.0",
+      "purl": "pkg:nix/vector@0.52.0",
+      "cpe": "cpe:2.3:a:vector:vector:0.52.0:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/6pjsrnpnsvkf6maawq9w5c2nfshv7x7g-vector-0.51.1"
+          "value": "/nix/store/4y7hkd103zaildzaswix0af6jkafar0p-vector-0.52.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/15f3w17rarp038wv9f8sfb9k8zm8vs8f-vector-0.51.1.drv"
+          "value": "/nix/store/4fnm5m9d5ny04l6q88qajrjcbr8jsz34-vector-0.52.0.drv"
         }
       ]
     }
@@ -40,7 +40,7 @@
   "components": [
     {
       "type": "library",
-      "bom-ref": "/nix/store/inml62h6c54frrlb3pwiq1asmk6l3gfz-acl-2.3.2.drv",
+      "bom-ref": "/nix/store/wvwmmqf9zp1zqzdwkx4jdlhb7cfy7986-acl-2.3.2.drv",
       "name": "acl",
       "version": "2.3.2",
       "purl": "pkg:nix/acl@2.3.2",
@@ -48,17 +48,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/fwfpzqrvzhpjp91rbnq64z07diyicbwh-acl-2.3.2"
+          "value": "/nix/store/6170574n49blxp3r9j94wrm61hcx854c-acl-2.3.2"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/inml62h6c54frrlb3pwiq1asmk6l3gfz-acl-2.3.2.drv"
+          "value": "/nix/store/wvwmmqf9zp1zqzdwkx4jdlhb7cfy7986-acl-2.3.2.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/a9x2q6cvqx3f887x96nnsngabk21s1rh-attr-2.5.2.drv",
+      "bom-ref": "/nix/store/1h4vkh38919mfrcxgry0z1isxsdsjh2y-attr-2.5.2.drv",
       "name": "attr",
       "version": "2.5.2",
       "purl": "pkg:nix/attr@2.5.2",
@@ -66,17 +66,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/12qcfbv6bgmxi1jd2dcddy25ijpcgj60-attr-2.5.2"
+          "value": "/nix/store/qfb2ziys559b8rv50ij2inkc7a03qs3d-attr-2.5.2"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/a9x2q6cvqx3f887x96nnsngabk21s1rh-attr-2.5.2.drv"
+          "value": "/nix/store/1h4vkh38919mfrcxgry0z1isxsdsjh2y-attr-2.5.2.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv",
+      "bom-ref": "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv",
       "name": "bash",
       "version": "5.3p3",
       "purl": "pkg:nix/bash@5.3p3",
@@ -84,17 +84,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/rlq03x4cwf8zn73hxaxnx0zn5q9kifls-bash-5.3p3"
+          "value": "/nix/store/wv8bpzriikv65xnd1vciqpq7rnr8h2q2-bash-5.3p3"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv"
+          "value": "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "name": "binutils",
       "version": "2.44",
       "purl": "pkg:nix/binutils@2.44",
@@ -130,21 +130,21 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/dc9vaz50jg7mibk9xvqw5dqv89cxzla3-binutils-2.44"
+          "value": "/nix/store/i839kg98izahkn1iq17sn3wliliic7pm-binutils-2.44"
         },
         {
           "name": "nix:output_path",
-          "value": "/nix/store/rmv4h4x475k2p321ln3pd0ddng7vv8k6-binutils-2.44-lib"
+          "value": "/nix/store/rk9zb6sdyn4wq3i9m6p6zpkclpzkak7v-binutils-2.44-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv"
+          "value": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/ghgi1m8mvwahdazvd87829gsyaixhdp0-binutils-wrapper-2.44.drv",
+      "bom-ref": "/nix/store/41gpall30njn2686qz7v9fx6njd7h221-binutils-wrapper-2.44.drv",
       "name": "binutils-wrapper",
       "version": "2.44",
       "purl": "pkg:nix/binutils-wrapper@2.44",
@@ -152,17 +152,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/xwydcyvlsa3cvssk0y5llgdhlhjvmqdm-binutils-wrapper-2.44"
+          "value": "/nix/store/hnan7l0v68sahyxbazz5y358prz253d1-binutils-wrapper-2.44"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/ghgi1m8mvwahdazvd87829gsyaixhdp0-binutils-wrapper-2.44.drv"
+          "value": "/nix/store/41gpall30njn2686qz7v9fx6njd7h221-binutils-wrapper-2.44.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/j65ir8dk6nl69j79gsl4qq5x193ml0vd-brotli-1.1.0.drv",
+      "bom-ref": "/nix/store/q8ni9y7x3z60rhmni1ggw325h1ccg26i-brotli-1.1.0.drv",
       "name": "brotli",
       "version": "1.1.0",
       "purl": "pkg:nix/brotli@1.1.0",
@@ -170,35 +170,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/v8czfabwiry1aik0j3b4mqkqvn7vnxfi-brotli-1.1.0-lib"
+          "value": "/nix/store/nq7g6qdl09qmazansgn0dfl6v73g5zzy-brotli-1.1.0-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/j65ir8dk6nl69j79gsl4qq5x193ml0vd-brotli-1.1.0.drv"
+          "value": "/nix/store/q8ni9y7x3z60rhmni1ggw325h1ccg26i-brotli-1.1.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/f8dsxfvvf1wlgqlxacj9mjk45p7ajk8r-c-ares-1.34.5.drv",
-      "name": "c-ares",
-      "version": "1.34.5",
-      "purl": "pkg:nix/c-ares@1.34.5",
-      "cpe": "cpe:2.3:a:c-ares:c-ares:1.34.5:*:*:*:*:*:*:*",
-      "properties": [
-        {
-          "name": "nix:output_path",
-          "value": "/nix/store/27r2vkndmz7q6gni64l84j46igsz7km4-c-ares-1.34.5"
-        },
-        {
-          "name": "nix:drv_path",
-          "value": "/nix/store/f8dsxfvvf1wlgqlxacj9mjk45p7ajk8r-c-ares-1.34.5.drv"
-        }
-      ]
-    },
-    {
-      "type": "library",
-      "bom-ref": "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv",
+      "bom-ref": "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv",
       "name": "coreutils",
       "version": "9.8",
       "purl": "pkg:nix/coreutils@9.8",
@@ -206,35 +188,35 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/imad8dvhp77h0pjbckp6wvmnyhp8dpgg-coreutils-9.8"
+          "value": "/nix/store/vzx1mi9c0xfadmsm9dhd83d005cb1qs9-coreutils-9.8"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv"
+          "value": "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
+      "bom-ref": "/nix/store/nk7srgibl26nz3m33h66rvmxfdncy1vy-curl-8.19.0.drv",
       "name": "curl",
-      "version": "8.17.0",
-      "purl": "pkg:nix/curl@8.17.0",
-      "cpe": "cpe:2.3:a:curl:curl:8.17.0:*:*:*:*:*:*:*",
+      "version": "8.19.0",
+      "purl": "pkg:nix/curl@8.19.0",
+      "cpe": "cpe:2.3:a:curl:curl:8.19.0:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/8idis3j5l13c3x74jl8xly0k4qyk9mx6-curl-8.17.0"
+          "value": "/nix/store/81pss1srk50jq813fn24z89hg2dbqaxz-curl-8.19.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv"
+          "value": "/nix/store/nk7srgibl26nz3m33h66rvmxfdncy1vy-curl-8.19.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/g9n0j461in2dpmrhc2zlb9cl66x0j24g-cyrus-sasl-2.1.28.drv",
+      "bom-ref": "/nix/store/5dcg3ajh33wd3sd99bjias0hj1w4ibhb-cyrus-sasl-2.1.28.drv",
       "name": "cyrus-sasl",
       "version": "2.1.28",
       "purl": "pkg:nix/cyrus-sasl@2.1.28",
@@ -242,17 +224,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/669vkv3svmr1yq9g6xlxkljizf3ax9rr-cyrus-sasl-2.1.28"
+          "value": "/nix/store/xz8a4sxb7hwixvwp6ab9lna6bg5qn1jd-cyrus-sasl-2.1.28"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/g9n0j461in2dpmrhc2zlb9cl66x0j24g-cyrus-sasl-2.1.28.drv"
+          "value": "/nix/store/5dcg3ajh33wd3sd99bjias0hj1w4ibhb-cyrus-sasl-2.1.28.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/55gd4wj3c7hmypfg5xqngyl6i69hkz1a-db-5.3.28.drv",
+      "bom-ref": "/nix/store/vd7an1n86kp2y5iqrxjrx88syvpfy2vr-db-5.3.28.drv",
       "name": "db",
       "version": "5.3.28",
       "purl": "pkg:nix/db@5.3.28",
@@ -276,17 +258,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/xrrdz9ryg5acvafws5s1dc2x0rb0y3ds-db-5.3.28"
+          "value": "/nix/store/kdxdbhwhl1l8jxacqwys5ldrfdgvk33y-db-5.3.28"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/55gd4wj3c7hmypfg5xqngyl6i69hkz1a-db-5.3.28.drv"
+          "value": "/nix/store/vd7an1n86kp2y5iqrxjrx88syvpfy2vr-db-5.3.28.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/0ilqprk5xza29cw04fv7pfzd5x99gxia-expand-response-params.drv",
+      "bom-ref": "/nix/store/jkm6vhc3rax9n4byr0153chd0blnqlsr-expand-response-params.drv",
       "name": "expand-response-params",
       "version": "",
       "purl": "pkg:nix/expand-response-params",
@@ -294,17 +276,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/wk01h0i1j91ph18b2kzlf213ixb9wq0k-expand-response-params"
+          "value": "/nix/store/5i591zw3drkrai4ms2qqjzdhmzzsymw8-expand-response-params"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/0ilqprk5xza29cw04fv7pfzd5x99gxia-expand-response-params.drv"
+          "value": "/nix/store/jkm6vhc3rax9n4byr0153chd0blnqlsr-expand-response-params.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
+      "bom-ref": "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
       "name": "gcc",
       "version": "14.3.0",
       "purl": "pkg:nix/gcc@14.3.0",
@@ -312,25 +294,25 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/kzq78n13l8w24jn8bx4djj79k5j717f1-gcc-14.3.0"
+          "value": "/nix/store/06409a3d2d3b1113zdk9rm5a3ns4rizz-gcc-14.3.0"
         },
         {
           "name": "nix:output_path",
-          "value": "/nix/store/shs2lyjm5yv7fmg4pwyvrlv9zr4macmv-gcc-14.3.0-libgcc"
+          "value": "/nix/store/1xw5xccqqh1xw3mvd70hyil6x418wxcm-gcc-14.3.0-lib"
         },
         {
           "name": "nix:output_path",
-          "value": "/nix/store/xm08aqdd7pxcdhm0ak6aqb1v7hw5q6ri-gcc-14.3.0-lib"
+          "value": "/nix/store/xqgj6py3hb44dvinh6isa7hdr3d72a5l-gcc-14.3.0-libgcc"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv"
+          "value": "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/xd09z9hp96djzb97y37k6pfmd12w3509-gcc-wrapper-14.3.0.drv",
+      "bom-ref": "/nix/store/67wkbgxbg74qd44lnl0918prcsr23qvc-gcc-wrapper-14.3.0.drv",
       "name": "gcc-wrapper",
       "version": "14.3.0",
       "purl": "pkg:nix/gcc-wrapper@14.3.0",
@@ -338,43 +320,43 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/vr15iyyykg9zai6fpgvhcgyw7gckl78w-gcc-wrapper-14.3.0"
+          "value": "/nix/store/kilyfvfmh9x9rlaj47ph1916lbc1pnsr-gcc-wrapper-14.3.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/xd09z9hp96djzb97y37k6pfmd12w3509-gcc-wrapper-14.3.0.drv"
+          "value": "/nix/store/67wkbgxbg74qd44lnl0918prcsr23qvc-gcc-wrapper-14.3.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "name": "glibc",
-      "version": "2.40-66",
-      "purl": "pkg:nix/glibc@2.40-66",
-      "cpe": "cpe:2.3:a:glibc:glibc:2.40-66:*:*:*:*:*:*:*",
+      "version": "2.40-218",
+      "purl": "pkg:nix/glibc@2.40-218",
+      "cpe": "cpe:2.3:a:glibc:glibc:2.40-218:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/gi4cz4ir3zlwhf1azqfgxqdnczfrwsr7-glibc-2.40-66-dev"
+          "value": "/nix/store/903kx9pwhyzswmx1caf7rc8idram9vdq-glibc-2.40-218-dev"
         },
         {
           "name": "nix:output_path",
-          "value": "/nix/store/q6wgv06q39bfhx2xl8ysc05wi6m2zdss-glibc-2.40-66-bin"
+          "value": "/nix/store/jbmmanvw6drvsrq723s3n9qqsdwfd1bl-glibc-2.40-218-bin"
         },
         {
           "name": "nix:output_path",
-          "value": "/nix/store/xx7cm72qy2c0643cm1ipngd87aqwkcdp-glibc-2.40-66"
+          "value": "/nix/store/pdwlyjkmc6icc0wb5gaw08m9ynqrg683-glibc-2.40-218"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+          "value": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv",
+      "bom-ref": "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv",
       "name": "gmp",
       "version": "6.3.0",
       "purl": "pkg:nix/gmp@6.3.0",
@@ -382,17 +364,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/0rxahp0ckjwz7kmnh8vzwfs8ir8yrf5r-gmp-6.3.0"
+          "value": "/nix/store/pmpyfb4pgazm3iv70bnsmvp6a41pmbg5-gmp-6.3.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv"
+          "value": "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/bvsj9xixq8n3jnd3nwprbz8qpnawzkpd-gmp-with-cxx-6.3.0.drv",
+      "bom-ref": "/nix/store/qrx2narmg4165n67b68k2y9p3cl5r34i-gmp-with-cxx-6.3.0.drv",
       "name": "gmp-with-cxx",
       "version": "6.3.0",
       "purl": "pkg:nix/gmp-with-cxx@6.3.0",
@@ -400,17 +382,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/2f7yzmvcsydw38zr369l9xpk63v1ld5q-gmp-with-cxx-6.3.0"
+          "value": "/nix/store/4hqhnbmw6n9xdgp0vy7lzmjiz7rdqjk8-gmp-with-cxx-6.3.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/bvsj9xixq8n3jnd3nwprbz8qpnawzkpd-gmp-with-cxx-6.3.0.drv"
+          "value": "/nix/store/qrx2narmg4165n67b68k2y9p3cl5r34i-gmp-with-cxx-6.3.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/hi1hlj16r6gwpzk8kk3wnmq1wjgyf3jf-gnugrep-3.12.drv",
+      "bom-ref": "/nix/store/r9l413pyf6s12fg9g0iyh1i5fs5dk1ph-gnugrep-3.12.drv",
       "name": "gnugrep",
       "version": "3.12",
       "purl": "pkg:nix/gnugrep@3.12",
@@ -418,17 +400,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/x3zjxxz8m4ki88axp0gn8q8m6bldybba-gnugrep-3.12"
+          "value": "/nix/store/ph2lki556zck2g99ngzy2f451ly9pvy4-gnugrep-3.12"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/hi1hlj16r6gwpzk8kk3wnmq1wjgyf3jf-gnugrep-3.12.drv"
+          "value": "/nix/store/r9l413pyf6s12fg9g0iyh1i5fs5dk1ph-gnugrep-3.12.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/iax6n81y2lg4br9vgbiv8764hl7bc58y-isl-0.20.drv",
+      "bom-ref": "/nix/store/2vmhycvymylxr167djw5kvn0n2f3123a-isl-0.20.drv",
       "name": "isl",
       "version": "0.20",
       "purl": "pkg:nix/isl@0.20",
@@ -436,17 +418,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/kk64v6spb2sfj8br6h729vgqd2d13pn7-isl-0.20"
+          "value": "/nix/store/214g5k8462lz5bvmb04w0c3cxdrp9dvf-isl-0.20"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/iax6n81y2lg4br9vgbiv8764hl7bc58y-isl-0.20.drv"
+          "value": "/nix/store/2vmhycvymylxr167djw5kvn0n2f3123a-isl-0.20.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/kdy67ddpz5qpxm1c788r1jg4bf5bzhlm-jemalloc-5.3.0-unstable-2025-09-12.drv",
+      "bom-ref": "/nix/store/dj0irspvgbg3s28z5l95p0yzhwq7zswj-jemalloc-5.3.0-unstable-2025-09-12.drv",
       "name": "jemalloc",
       "version": "5.3.0-unstable-2025-09-12",
       "purl": "pkg:nix/jemalloc@5.3.0-unstable-2025-09-12",
@@ -454,17 +436,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/3ninyn8v6r7g7rblwgjf6k3sw1gjk484-jemalloc-5.3.0-unstable-2025-09-12"
+          "value": "/nix/store/h4r5lbdbxc9f5jwy6xz0l215lhmls890-jemalloc-5.3.0-unstable-2025-09-12"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/kdy67ddpz5qpxm1c788r1jg4bf5bzhlm-jemalloc-5.3.0-unstable-2025-09-12.drv"
+          "value": "/nix/store/dj0irspvgbg3s28z5l95p0yzhwq7zswj-jemalloc-5.3.0-unstable-2025-09-12.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/7br8j88y4a7bba1lyddp2c6ikavdnqpg-keyutils-1.6.3.drv",
+      "bom-ref": "/nix/store/2awra14p41050c8fc68jp6nck2va163k-keyutils-1.6.3.drv",
       "name": "keyutils",
       "version": "1.6.3",
       "purl": "pkg:nix/keyutils@1.6.3",
@@ -472,17 +454,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/h7rm00s43k24p73qw7wv1dw8iziqc054-keyutils-1.6.3-lib"
+          "value": "/nix/store/ip7j3fm64fffn87cmrn1zldn6df5izkd-keyutils-1.6.3-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/7br8j88y4a7bba1lyddp2c6ikavdnqpg-keyutils-1.6.3.drv"
+          "value": "/nix/store/2awra14p41050c8fc68jp6nck2va163k-keyutils-1.6.3.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/am3iz6iqqva2fp4hbi7bqvlpmrm20kv7-krb5-1.22.1.drv",
+      "bom-ref": "/nix/store/fk03azabv128xfvnww2jmlphb6lwa8fi-krb5-1.22.1.drv",
       "name": "krb5-1.22.1",
       "version": "",
       "purl": "pkg:nix/krb5-1.22.1",
@@ -490,17 +472,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/9z2jg63df52gd4nmbggjcw41cdi4m14p-krb5-1.22.1-lib"
+          "value": "/nix/store/b1427cr48rk9waxs7cqybjk0fzwgyjfx-krb5-1.22.1-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/am3iz6iqqva2fp4hbi7bqvlpmrm20kv7-krb5-1.22.1.drv"
+          "value": "/nix/store/fk03azabv128xfvnww2jmlphb6lwa8fi-krb5-1.22.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv",
+      "bom-ref": "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv",
       "name": "libidn2",
       "version": "2.3.8",
       "purl": "pkg:nix/libidn2@2.3.8",
@@ -508,17 +490,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/hxcmad417fd8ql9ylx96xpak7da06yiv-libidn2-2.3.8"
+          "value": "/nix/store/qywg7bxskvihq62ms2g51fkzkrdnyfkh-libidn2-2.3.8"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv"
+          "value": "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/nhb0lfgjiqwvjmpi4cz74bxy31akir8v-libmpc-1.3.1.drv",
+      "bom-ref": "/nix/store/185c68pwc0gys4g65p3y1j2z0hf54gmi-libmpc-1.3.1.drv",
       "name": "libmpc",
       "version": "1.3.1",
       "purl": "pkg:nix/libmpc@1.3.1",
@@ -526,17 +508,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/qpvs11qdbqcx4q41pzmzld9phgbw4vv8-libmpc-1.3.1"
+          "value": "/nix/store/jd92kq23zg9vk4six3hfjcxfby1rfp57-libmpc-1.3.1"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/nhb0lfgjiqwvjmpi4cz74bxy31akir8v-libmpc-1.3.1.drv"
+          "value": "/nix/store/185c68pwc0gys4g65p3y1j2z0hf54gmi-libmpc-1.3.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/8zl186y6n4phd10y8dgag39273zqaq93-libpsl-0.21.5.drv",
+      "bom-ref": "/nix/store/m928pjlxqjjqqh79hrcs7pcfygbvd9k0-libpsl-0.21.5.drv",
       "name": "libpsl",
       "version": "0.21.5",
       "purl": "pkg:nix/libpsl@0.21.5",
@@ -544,17 +526,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/d3fj7k3aya8slkgm72gn5izyvnlkgx73-libpsl-0.21.5"
+          "value": "/nix/store/jc0q3wv7s1r323nw7psq90fif01fcfyi-libpsl-0.21.5"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/8zl186y6n4phd10y8dgag39273zqaq93-libpsl-0.21.5.drv"
+          "value": "/nix/store/m928pjlxqjjqqh79hrcs7pcfygbvd9k0-libpsl-0.21.5.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/9lg0dcdbaixizg8ikq30j3id8bdxc6pd-libssh2-1.11.1.drv",
+      "bom-ref": "/nix/store/n85bnaj1wkd2h28v9p8ds8jd0iipyn0n-libssh2-1.11.1.drv",
       "name": "libssh2",
       "version": "1.11.1",
       "purl": "pkg:nix/libssh2@1.11.1",
@@ -562,17 +544,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/jrczm01vajmmh23wrzbgk51plwn7lfsi-libssh2-1.11.1"
+          "value": "/nix/store/8sjns33impvxcrg7hk67mymakd695jn3-libssh2-1.11.1"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/9lg0dcdbaixizg8ikq30j3id8bdxc6pd-libssh2-1.11.1.drv"
+          "value": "/nix/store/n85bnaj1wkd2h28v9p8ds8jd0iipyn0n-libssh2-1.11.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/2gy21xcjpq5q29crsy10vsv2m5f2513w-libunistring-1.4.1.drv",
+      "bom-ref": "/nix/store/j800s5phgfn9jg7iyiys89qjcr5hxriz-libunistring-1.4.1.drv",
       "name": "libunistring",
       "version": "1.4.1",
       "purl": "pkg:nix/libunistring@1.4.1",
@@ -580,17 +562,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/3rkccxj7vi0p2a0d48c4a4z2vv2cni88-libunistring-1.4.1"
+          "value": "/nix/store/hjwppd89fk8781xl4r35xqlddwqi5f66-libunistring-1.4.1"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/2gy21xcjpq5q29crsy10vsv2m5f2513w-libunistring-1.4.1.drv"
+          "value": "/nix/store/j800s5phgfn9jg7iyiys89qjcr5hxriz-libunistring-1.4.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/r6nabsa27pwsyk0iccz8k64ra1pv54z1-libxcrypt-4.5.2.drv",
+      "bom-ref": "/nix/store/ss2bjjmmq8vw60gpa1advj38wanw4arp-libxcrypt-4.5.2.drv",
       "name": "libxcrypt",
       "version": "4.5.2",
       "purl": "pkg:nix/libxcrypt@4.5.2",
@@ -598,17 +580,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/06dqjacsjv5gdgfhva8k3jjzsx8hx9nq-libxcrypt-4.5.2"
+          "value": "/nix/store/kpyp5ihkmjiysa6kmnspkhqp1jic6kwj-libxcrypt-4.5.2"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/r6nabsa27pwsyk0iccz8k64ra1pv54z1-libxcrypt-4.5.2.drv"
+          "value": "/nix/store/ss2bjjmmq8vw60gpa1advj38wanw4arp-libxcrypt-4.5.2.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/65bd7a70cq5xf8wh15c7flf6gnb1gfrf-linux-headers-6.16.7.drv",
+      "bom-ref": "/nix/store/6b9vb9fwl2hqqpfzs3i4lbh3m93frhsl-linux-headers-6.16.7.drv",
       "name": "linux-headers",
       "version": "6.16.7",
       "purl": "pkg:nix/linux-headers@6.16.7",
@@ -616,17 +598,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7"
+          "value": "/nix/store/9a975kwlj5hyfq8y6hsapfaj5pj7g090-linux-headers-6.16.7"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/65bd7a70cq5xf8wh15c7flf6gnb1gfrf-linux-headers-6.16.7.drv"
+          "value": "/nix/store/6b9vb9fwl2hqqpfzs3i4lbh3m93frhsl-linux-headers-6.16.7.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/v0v74axd0b7p9bfyvpar1h79mgxqg53m-mpfr-4.2.2.drv",
+      "bom-ref": "/nix/store/qmj9cx6m8v1gm9v3lpqbgdp34gmz3v5f-mpfr-4.2.2.drv",
       "name": "mpfr",
       "version": "4.2.2",
       "purl": "pkg:nix/mpfr@4.2.2",
@@ -634,17 +616,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/czkzgcvcdc0c977cdmhaddyzhwp07x2g-mpfr-4.2.2"
+          "value": "/nix/store/dc26wqbswcz683a1czpq3zs3qfcql05k-mpfr-4.2.2"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/v0v74axd0b7p9bfyvpar1h79mgxqg53m-mpfr-4.2.2.drv"
+          "value": "/nix/store/qmj9cx6m8v1gm9v3lpqbgdp34gmz3v5f-mpfr-4.2.2.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/a7mdj8k2rifz373vpwz0g539syap99vg-nghttp2-1.67.1.drv",
+      "bom-ref": "/nix/store/qw5zsfqxwgs6l9h9brnhxb6kc08hm7bl-nghttp2-1.67.1.drv",
       "name": "nghttp2",
       "version": "1.67.1",
       "purl": "pkg:nix/nghttp2@1.67.1",
@@ -652,17 +634,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/cn8ppsx5dns0n4naa4k5sc0siymg41vw-nghttp2-1.67.1-lib"
+          "value": "/nix/store/qfk5ln8pqyp5falafwnf1r96357nfaqc-nghttp2-1.67.1-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/a7mdj8k2rifz373vpwz0g539syap99vg-nghttp2-1.67.1.drv"
+          "value": "/nix/store/qw5zsfqxwgs6l9h9brnhxb6kc08hm7bl-nghttp2-1.67.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/wi2p56nzjqbizi3p3daxnshv6qn5ihxy-nghttp3-1.12.0.drv",
+      "bom-ref": "/nix/store/bipd0bdp24d6ijhrwfz9cjhgl1nlcjja-nghttp3-1.12.0.drv",
       "name": "nghttp3",
       "version": "1.12.0",
       "purl": "pkg:nix/nghttp3@1.12.0",
@@ -670,17 +652,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/ggxfzhsmd3m54fac5xph7kva38k44mc2-nghttp3-1.12.0"
+          "value": "/nix/store/6m0aw51lhxcj8jdq11br6y668n82wisl-nghttp3-1.12.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/wi2p56nzjqbizi3p3daxnshv6qn5ihxy-nghttp3-1.12.0.drv"
+          "value": "/nix/store/bipd0bdp24d6ijhrwfz9cjhgl1nlcjja-nghttp3-1.12.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/6mi0i4pym4xz6zq4c4h5d94572294lxq-ngtcp2-1.17.0.drv",
+      "bom-ref": "/nix/store/sllv5j18hayk3ygxbq4bi1lwg518d2yx-ngtcp2-1.17.0.drv",
       "name": "ngtcp2",
       "version": "1.17.0",
       "purl": "pkg:nix/ngtcp2@1.17.0",
@@ -688,17 +670,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/50b381c1c7h4ll8a40wqh3fcknwpnnck-ngtcp2-1.17.0"
+          "value": "/nix/store/c32zz9mzvakylqf2fvpjmwdhcj68123c-ngtcp2-1.17.0"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/6mi0i4pym4xz6zq4c4h5d94572294lxq-ngtcp2-1.17.0.drv"
+          "value": "/nix/store/sllv5j18hayk3ygxbq4bi1lwg518d2yx-ngtcp2-1.17.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/xxn9dkic6iyxa8x331204yk7r2b0557h-oniguruma-6.9.10.drv",
+      "bom-ref": "/nix/store/2hbqqil9kdaxh2pnbdav6fck0xkk2z54-oniguruma-6.9.10.drv",
       "name": "oniguruma",
       "version": "6.9.10",
       "purl": "pkg:nix/oniguruma@6.9.10",
@@ -706,35 +688,35 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/3d8riwhf4bn18y0jsqn7vy4p25xbwi3h-oniguruma-6.9.10-lib"
+          "value": "/nix/store/j3nmksvgdh6d1hm5xlwns8zpnbhqlj2f-oniguruma-6.9.10-lib"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/xxn9dkic6iyxa8x331204yk7r2b0557h-oniguruma-6.9.10.drv"
+          "value": "/nix/store/2hbqqil9kdaxh2pnbdav6fck0xkk2z54-oniguruma-6.9.10.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "name": "openssl",
-      "version": "3.6.0",
-      "purl": "pkg:nix/openssl@3.6.0",
-      "cpe": "cpe:2.3:a:openssl:openssl:3.6.0:*:*:*:*:*:*:*",
+      "version": "3.6.1",
+      "purl": "pkg:nix/openssl@3.6.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:3.6.1:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/61i74yjkj9p1qphfl7018ja4sdwkipx0-openssl-3.6.0"
+          "value": "/nix/store/i8qhanfxfgwnr6a4pdd9f2qyl1rgi94p-openssl-3.6.1"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv"
+          "value": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/iih5kzmajqy0bywqz12fjaa5bxqnhrmz-pcre2-10.46.drv",
+      "bom-ref": "/nix/store/fw3cn6ld4xfbix0fpi8s4rhvsk8waq1f-pcre2-10.46.drv",
       "name": "pcre2",
       "version": "10.46",
       "purl": "pkg:nix/pcre2@10.46",
@@ -742,35 +724,35 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/6y07blp88mrgn05wxbif8yzmd0g2ss4x-pcre2-10.46"
+          "value": "/nix/store/9jzp4zpxzjaz9xhpmqlrgz06m166p8kh-pcre2-10.46"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/iih5kzmajqy0bywqz12fjaa5bxqnhrmz-pcre2-10.46.drv"
+          "value": "/nix/store/fw3cn6ld4xfbix0fpi8s4rhvsk8waq1f-pcre2-10.46.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/jx3i1wmys27p11mny9vzl3a4jx620f1c-publicsuffix-list-0-unstable-2025-10-08.drv",
+      "bom-ref": "/nix/store/02apy789ap1ljcqls4b3hnhwg8nalx23-publicsuffix-list-0-unstable-2026-01-25.drv",
       "name": "publicsuffix-list",
-      "version": "0-unstable-2025-10-08",
-      "purl": "pkg:nix/publicsuffix-list@0-unstable-2025-10-08",
-      "cpe": "cpe:2.3:a:publicsuffix-list:publicsuffix-list:0-unstable-2025-10-08:*:*:*:*:*:*:*",
+      "version": "0-unstable-2026-01-25",
+      "purl": "pkg:nix/publicsuffix-list@0-unstable-2026-01-25",
+      "cpe": "cpe:2.3:a:publicsuffix-list:publicsuffix-list:0-unstable-2026-01-25:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/1rd1dikwmy9gnlk5911gf2wf5r8k9wdg-publicsuffix-list-0-unstable-2025-10-08"
+          "value": "/nix/store/ng1bm0c3gjcc0avb4ms3nynyyqq2s03l-publicsuffix-list-0-unstable-2026-01-25"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/jx3i1wmys27p11mny9vzl3a4jx620f1c-publicsuffix-list-0-unstable-2025-10-08.drv"
+          "value": "/nix/store/02apy789ap1ljcqls4b3hnhwg8nalx23-publicsuffix-list-0-unstable-2026-01-25.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/ank9r0dkyp50iirhrw8m96yl8n1b5fbq-rdkafka-2.11.1.drv",
+      "bom-ref": "/nix/store/28nzjzvkavlzirdygq0xyi3050q7w2f0-rdkafka-2.11.1.drv",
       "name": "rdkafka",
       "version": "2.11.1",
       "purl": "pkg:nix/rdkafka@2.11.1",
@@ -778,17 +760,17 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/nq5by9vwh448lbzhnp7xqcrmlnmndxqw-rdkafka-2.11.1"
+          "value": "/nix/store/hm3g8mkg8lxhchd24hywiiab44sjxml2-rdkafka-2.11.1"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/ank9r0dkyp50iirhrw8m96yl8n1b5fbq-rdkafka-2.11.1.drv"
+          "value": "/nix/store/28nzjzvkavlzirdygq0xyi3050q7w2f0-rdkafka-2.11.1.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/bm5kzm1lv0dkrznzc79zl5rwbv71460w-xgcc-14.3.0.drv",
+      "bom-ref": "/nix/store/k3yfb24asq152abydbqg56mdzq9q4bqy-xgcc-14.3.0.drv",
       "name": "xgcc",
       "version": "14.3.0",
       "purl": "pkg:nix/xgcc@14.3.0",
@@ -796,35 +778,35 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/2a3izq4hffdd9r9gb2w6q2ibdc86kss6-xgcc-14.3.0-libgcc"
+          "value": "/nix/store/fv5lgysa3hmf3l3dkkpwvndcg6xwhy8m-xgcc-14.3.0-libgcc"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/bm5kzm1lv0dkrznzc79zl5rwbv71460w-xgcc-14.3.0.drv"
+          "value": "/nix/store/k3yfb24asq152abydbqg56mdzq9q4bqy-xgcc-14.3.0.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
+      "bom-ref": "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
       "name": "zlib",
-      "version": "1.3.1",
-      "purl": "pkg:nix/zlib@1.3.1",
-      "cpe": "cpe:2.3:a:zlib:zlib:1.3.1:*:*:*:*:*:*:*",
+      "version": "1.3.2",
+      "purl": "pkg:nix/zlib@1.3.2",
+      "cpe": "cpe:2.3:a:zlib:zlib:1.3.2:*:*:*:*:*:*:*",
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/l7xwm1f6f3zj2x8jwdbi8gdyfbx07sh7-zlib-1.3.1"
+          "value": "/nix/store/6v5hbaxvndmaf21rfyryxpn1xjkljrid-zlib-1.3.2"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv"
+          "value": "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv"
         }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "/nix/store/8brm4045abq27fa7i2v68yx2q5d70mdr-zstd-1.5.7.drv",
+      "bom-ref": "/nix/store/rdqv4rrahm28xr9ia41962wpwfp9z7dp-zstd-1.5.7.drv",
       "name": "zstd",
       "version": "1.5.7",
       "purl": "pkg:nix/zstd@1.5.7",
@@ -832,328 +814,321 @@
       "properties": [
         {
           "name": "nix:output_path",
-          "value": "/nix/store/s7vmxmhkq439cjb7ag9w198p6dk7kl0w-zstd-1.5.7"
+          "value": "/nix/store/00qn3vc7r4m32c072kjnrbxd86w9slzj-zstd-1.5.7"
         },
         {
           "name": "nix:drv_path",
-          "value": "/nix/store/8brm4045abq27fa7i2v68yx2q5d70mdr-zstd-1.5.7.drv"
+          "value": "/nix/store/rdqv4rrahm28xr9ia41962wpwfp9z7dp-zstd-1.5.7.drv"
         }
       ]
     }
   ],
   "dependencies": [
     {
-      "ref": "/nix/store/inml62h6c54frrlb3pwiq1asmk6l3gfz-acl-2.3.2.drv",
+      "ref": "/nix/store/wvwmmqf9zp1zqzdwkx4jdlhb7cfy7986-acl-2.3.2.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/a9x2q6cvqx3f887x96nnsngabk21s1rh-attr-2.5.2.drv"
+        "/nix/store/1h4vkh38919mfrcxgry0z1isxsdsjh2y-attr-2.5.2.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/a9x2q6cvqx3f887x96nnsngabk21s1rh-attr-2.5.2.drv",
+      "ref": "/nix/store/1h4vkh38919mfrcxgry0z1isxsdsjh2y-attr-2.5.2.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv",
+      "ref": "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
-        "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv"
+        "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/ghgi1m8mvwahdazvd87829gsyaixhdp0-binutils-wrapper-2.44.drv",
+      "ref": "/nix/store/41gpall30njn2686qz7v9fx6njd7h221-binutils-wrapper-2.44.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0ilqprk5xza29cw04fv7pfzd5x99gxia-expand-response-params.drv",
-        "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv",
-        "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
-        "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv"
+        "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
+        "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv",
+        "/nix/store/jkm6vhc3rax9n4byr0153chd0blnqlsr-expand-response-params.drv",
+        "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/j65ir8dk6nl69j79gsl4qq5x193ml0vd-brotli-1.1.0.drv",
+      "ref": "/nix/store/q8ni9y7x3z60rhmni1ggw325h1ccg26i-brotli-1.1.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/f8dsxfvvf1wlgqlxacj9mjk45p7ajk8r-c-ares-1.34.5.drv",
+      "ref": "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/1h4vkh38919mfrcxgry0z1isxsdsjh2y-attr-2.5.2.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/qrx2narmg4165n67b68k2y9p3cl5r34i-gmp-with-cxx-6.3.0.drv",
+        "/nix/store/wvwmmqf9zp1zqzdwkx4jdlhb7cfy7986-acl-2.3.2.drv"
       ]
     },
     {
-      "ref": "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv",
+      "ref": "/nix/store/nk7srgibl26nz3m33h66rvmxfdncy1vy-curl-8.19.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/a9x2q6cvqx3f887x96nnsngabk21s1rh-attr-2.5.2.drv",
-        "/nix/store/bvsj9xixq8n3jnd3nwprbz8qpnawzkpd-gmp-with-cxx-6.3.0.drv",
-        "/nix/store/inml62h6c54frrlb3pwiq1asmk6l3gfz-acl-2.3.2.drv"
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv",
+        "/nix/store/bipd0bdp24d6ijhrwfz9cjhgl1nlcjja-nghttp3-1.12.0.drv",
+        "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
+        "/nix/store/fk03azabv128xfvnww2jmlphb6lwa8fi-krb5-1.22.1.drv",
+        "/nix/store/m928pjlxqjjqqh79hrcs7pcfygbvd9k0-libpsl-0.21.5.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/n85bnaj1wkd2h28v9p8ds8jd0iipyn0n-libssh2-1.11.1.drv",
+        "/nix/store/q8ni9y7x3z60rhmni1ggw325h1ccg26i-brotli-1.1.0.drv",
+        "/nix/store/qw5zsfqxwgs6l9h9brnhxb6kc08hm7bl-nghttp2-1.67.1.drv",
+        "/nix/store/rdqv4rrahm28xr9ia41962wpwfp9z7dp-zstd-1.5.7.drv",
+        "/nix/store/sllv5j18hayk3ygxbq4bi1lwg518d2yx-ngtcp2-1.17.0.drv"
       ]
     },
     {
-      "ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
+      "ref": "/nix/store/5dcg3ajh33wd3sd99bjias0hj1w4ibhb-cyrus-sasl-2.1.28.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv",
-        "/nix/store/6mi0i4pym4xz6zq4c4h5d94572294lxq-ngtcp2-1.17.0.drv",
-        "/nix/store/8brm4045abq27fa7i2v68yx2q5d70mdr-zstd-1.5.7.drv",
-        "/nix/store/8zl186y6n4phd10y8dgag39273zqaq93-libpsl-0.21.5.drv",
-        "/nix/store/9lg0dcdbaixizg8ikq30j3id8bdxc6pd-libssh2-1.11.1.drv",
-        "/nix/store/a7mdj8k2rifz373vpwz0g539syap99vg-nghttp2-1.67.1.drv",
-        "/nix/store/am3iz6iqqva2fp4hbi7bqvlpmrm20kv7-krb5-1.22.1.drv",
-        "/nix/store/f8dsxfvvf1wlgqlxacj9mjk45p7ajk8r-c-ares-1.34.5.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-        "/nix/store/j65ir8dk6nl69j79gsl4qq5x193ml0vd-brotli-1.1.0.drv",
-        "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
-        "/nix/store/wi2p56nzjqbizi3p3daxnshv6qn5ihxy-nghttp3-1.12.0.drv"
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/fk03azabv128xfvnww2jmlphb6lwa8fi-krb5-1.22.1.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/ss2bjjmmq8vw60gpa1advj38wanw4arp-libxcrypt-4.5.2.drv",
+        "/nix/store/vd7an1n86kp2y5iqrxjrx88syvpfy2vr-db-5.3.28.drv"
       ]
     },
     {
-      "ref": "/nix/store/g9n0j461in2dpmrhc2zlb9cl66x0j24g-cyrus-sasl-2.1.28.drv",
+      "ref": "/nix/store/vd7an1n86kp2y5iqrxjrx88syvpfy2vr-db-5.3.28.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/55gd4wj3c7hmypfg5xqngyl6i69hkz1a-db-5.3.28.drv",
-        "/nix/store/am3iz6iqqva2fp4hbi7bqvlpmrm20kv7-krb5-1.22.1.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-        "/nix/store/r6nabsa27pwsyk0iccz8k64ra1pv54z1-libxcrypt-4.5.2.drv"
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/55gd4wj3c7hmypfg5xqngyl6i69hkz1a-db-5.3.28.drv",
+      "ref": "/nix/store/jkm6vhc3rax9n4byr0153chd0blnqlsr-expand-response-params.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/0ilqprk5xza29cw04fv7pfzd5x99gxia-expand-response-params.drv",
+      "ref": "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/185c68pwc0gys4g65p3y1j2z0hf54gmi-libmpc-1.3.1.drv",
+        "/nix/store/2vmhycvymylxr167djw5kvn0n2f3123a-isl-0.20.drv",
+        "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv",
+        "/nix/store/qmj9cx6m8v1gm9v3lpqbgdp34gmz3v5f-mpfr-4.2.2.drv"
       ]
     },
     {
-      "ref": "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
+      "ref": "/nix/store/67wkbgxbg74qd44lnl0918prcsr23qvc-gcc-wrapper-14.3.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/iax6n81y2lg4br9vgbiv8764hl7bc58y-isl-0.20.drv",
-        "/nix/store/nhb0lfgjiqwvjmpi4cz74bxy31akir8v-libmpc-1.3.1.drv",
-        "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv",
-        "/nix/store/v0v74axd0b7p9bfyvpar1h79mgxqg53m-mpfr-4.2.2.drv",
-        "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv"
+        "/nix/store/41gpall30njn2686qz7v9fx6njd7h221-binutils-wrapper-2.44.drv",
+        "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv",
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/jkm6vhc3rax9n4byr0153chd0blnqlsr-expand-response-params.drv",
+        "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/r9l413pyf6s12fg9g0iyh1i5fs5dk1ph-gnugrep-3.12.drv"
       ]
     },
     {
-      "ref": "/nix/store/xd09z9hp96djzb97y37k6pfmd12w3509-gcc-wrapper-14.3.0.drv",
+      "ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
-        "/nix/store/0ilqprk5xza29cw04fv7pfzd5x99gxia-expand-response-params.drv",
-        "/nix/store/ghgi1m8mvwahdazvd87829gsyaixhdp0-binutils-wrapper-2.44.drv",
-        "/nix/store/hi1hlj16r6gwpzk8kk3wnmq1wjgyf3jf-gnugrep-3.12.drv",
-        "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv",
-        "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv"
+        "/nix/store/6b9vb9fwl2hqqpfzs3i4lbh3m93frhsl-linux-headers-6.16.7.drv",
+        "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv",
+        "/nix/store/k3yfb24asq152abydbqg56mdzq9q4bqy-xgcc-14.3.0.drv"
       ]
     },
     {
-      "ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "ref": "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv",
       "dependsOn": [
-        "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv",
-        "/nix/store/65bd7a70cq5xf8wh15c7flf6gnb1gfrf-linux-headers-6.16.7.drv",
-        "/nix/store/bm5kzm1lv0dkrznzc79zl5rwbv71460w-xgcc-14.3.0.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv",
+      "ref": "/nix/store/qrx2narmg4165n67b68k2y9p3cl5r34i-gmp-with-cxx-6.3.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/bvsj9xixq8n3jnd3nwprbz8qpnawzkpd-gmp-with-cxx-6.3.0.drv",
+      "ref": "/nix/store/r9l413pyf6s12fg9g0iyh1i5fs5dk1ph-gnugrep-3.12.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv"
+        "/nix/store/fw3cn6ld4xfbix0fpi8s4rhvsk8waq1f-pcre2-10.46.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/hi1hlj16r6gwpzk8kk3wnmq1wjgyf3jf-gnugrep-3.12.drv",
+      "ref": "/nix/store/2vmhycvymylxr167djw5kvn0n2f3123a-isl-0.20.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/iih5kzmajqy0bywqz12fjaa5bxqnhrmz-pcre2-10.46.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv"
       ]
     },
     {
-      "ref": "/nix/store/iax6n81y2lg4br9vgbiv8764hl7bc58y-isl-0.20.drv",
+      "ref": "/nix/store/dj0irspvgbg3s28z5l95p0yzhwq7zswj-jemalloc-5.3.0-unstable-2025-09-12.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv"
+        "/nix/store/f0iwc652ai39s868bxi62hzd985xqssi-bash-5.3p3.drv",
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/kdy67ddpz5qpxm1c788r1jg4bf5bzhlm-jemalloc-5.3.0-unstable-2025-09-12.drv",
+      "ref": "/nix/store/2awra14p41050c8fc68jp6nck2va163k-keyutils-1.6.3.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
-        "/nix/store/vwmk63kc9sysjif65h7fdwnqr5h8jfm6-bash-5.3p3.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/7br8j88y4a7bba1lyddp2c6ikavdnqpg-keyutils-1.6.3.drv",
+      "ref": "/nix/store/fk03azabv128xfvnww2jmlphb6lwa8fi-krb5-1.22.1.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/2awra14p41050c8fc68jp6nck2va163k-keyutils-1.6.3.drv",
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/am3iz6iqqva2fp4hbi7bqvlpmrm20kv7-krb5-1.22.1.drv",
+      "ref": "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/7br8j88y4a7bba1lyddp2c6ikavdnqpg-keyutils-1.6.3.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv"
+        "/nix/store/j800s5phgfn9jg7iyiys89qjcr5hxriz-libunistring-1.4.1.drv"
       ]
     },
     {
-      "ref": "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv",
+      "ref": "/nix/store/185c68pwc0gys4g65p3y1j2z0hf54gmi-libmpc-1.3.1.drv",
       "dependsOn": [
-        "/nix/store/2gy21xcjpq5q29crsy10vsv2m5f2513w-libunistring-1.4.1.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv",
+        "/nix/store/qmj9cx6m8v1gm9v3lpqbgdp34gmz3v5f-mpfr-4.2.2.drv"
       ]
     },
     {
-      "ref": "/nix/store/nhb0lfgjiqwvjmpi4cz74bxy31akir8v-libmpc-1.3.1.drv",
+      "ref": "/nix/store/m928pjlxqjjqqh79hrcs7pcfygbvd9k0-libpsl-0.21.5.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv",
-        "/nix/store/v0v74axd0b7p9bfyvpar1h79mgxqg53m-mpfr-4.2.2.drv"
+        "/nix/store/02apy789ap1ljcqls4b3hnhwg8nalx23-publicsuffix-list-0-unstable-2026-01-25.drv",
+        "/nix/store/a64c09hgbhz1k3knddjgc43z6hpb0gsx-libidn2-2.3.8.drv",
+        "/nix/store/j800s5phgfn9jg7iyiys89qjcr5hxriz-libunistring-1.4.1.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/8zl186y6n4phd10y8dgag39273zqaq93-libpsl-0.21.5.drv",
+      "ref": "/nix/store/n85bnaj1wkd2h28v9p8ds8jd0iipyn0n-libssh2-1.11.1.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/2gy21xcjpq5q29crsy10vsv2m5f2513w-libunistring-1.4.1.drv",
-        "/nix/store/2zw1y1l2isiv9ww10bdiczbxgqnfmrgr-libidn2-2.3.8.drv",
-        "/nix/store/jx3i1wmys27p11mny9vzl3a4jx620f1c-publicsuffix-list-0-unstable-2025-10-08.drv"
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/9lg0dcdbaixizg8ikq30j3id8bdxc6pd-libssh2-1.11.1.drv",
+      "ref": "/nix/store/j800s5phgfn9jg7iyiys89qjcr5hxriz-libunistring-1.4.1.drv"
+    },
+    {
+      "ref": "/nix/store/ss2bjjmmq8vw60gpa1advj38wanw4arp-libxcrypt-4.5.2.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-        "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/2gy21xcjpq5q29crsy10vsv2m5f2513w-libunistring-1.4.1.drv"
+      "ref": "/nix/store/6b9vb9fwl2hqqpfzs3i4lbh3m93frhsl-linux-headers-6.16.7.drv"
     },
     {
-      "ref": "/nix/store/r6nabsa27pwsyk0iccz8k64ra1pv54z1-libxcrypt-4.5.2.drv",
+      "ref": "/nix/store/qmj9cx6m8v1gm9v3lpqbgdp34gmz3v5f-mpfr-4.2.2.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/pvm1xw3w3g0d1hjxk52b60vn718nndqq-gmp-6.3.0.drv"
       ]
     },
     {
-      "ref": "/nix/store/65bd7a70cq5xf8wh15c7flf6gnb1gfrf-linux-headers-6.16.7.drv"
-    },
-    {
-      "ref": "/nix/store/v0v74axd0b7p9bfyvpar1h79mgxqg53m-mpfr-4.2.2.drv",
+      "ref": "/nix/store/qw5zsfqxwgs6l9h9brnhxb6kc08hm7bl-nghttp2-1.67.1.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/q00927vi9b8nad9714r0n64lnm84ai1s-gmp-6.3.0.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/a7mdj8k2rifz373vpwz0g539syap99vg-nghttp2-1.67.1.drv",
+      "ref": "/nix/store/bipd0bdp24d6ijhrwfz9cjhgl1nlcjja-nghttp3-1.12.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/wi2p56nzjqbizi3p3daxnshv6qn5ihxy-nghttp3-1.12.0.drv",
+      "ref": "/nix/store/sllv5j18hayk3ygxbq4bi1lwg518d2yx-ngtcp2-1.17.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/6mi0i4pym4xz6zq4c4h5d94572294lxq-ngtcp2-1.17.0.drv",
+      "ref": "/nix/store/2hbqqil9kdaxh2pnbdav6fck0xkk2z54-oniguruma-6.9.10.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/xxn9dkic6iyxa8x331204yk7r2b0557h-oniguruma-6.9.10.drv",
+      "ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "ref": "/nix/store/fw3cn6ld4xfbix0fpi8s4rhvsk8waq1f-pcre2-10.46.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/iih5kzmajqy0bywqz12fjaa5bxqnhrmz-pcre2-10.46.drv",
+      "ref": "/nix/store/02apy789ap1ljcqls4b3hnhwg8nalx23-publicsuffix-list-0-unstable-2026-01-25.drv"
+    },
+    {
+      "ref": "/nix/store/28nzjzvkavlzirdygq0xyi3050q7w2f0-rdkafka-2.11.1.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
+        "/nix/store/5dcg3ajh33wd3sd99bjias0hj1w4ibhb-cyrus-sasl-2.1.28.drv",
+        "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
+        "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
+        "/nix/store/nk7srgibl26nz3m33h66rvmxfdncy1vy-curl-8.19.0.drv",
+        "/nix/store/rdqv4rrahm28xr9ia41962wpwfp9z7dp-zstd-1.5.7.drv"
       ]
     },
     {
-      "ref": "/nix/store/jx3i1wmys27p11mny9vzl3a4jx620f1c-publicsuffix-list-0-unstable-2025-10-08.drv"
-    },
-    {
-      "ref": "/nix/store/ank9r0dkyp50iirhrw8m96yl8n1b5fbq-rdkafka-2.11.1.drv",
+      "ref": "/nix/store/4fnm5m9d5ny04l6q88qajrjcbr8jsz34-vector-0.52.0.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
-        "/nix/store/8brm4045abq27fa7i2v68yx2q5d70mdr-zstd-1.5.7.drv",
-        "/nix/store/g9n0j461in2dpmrhc2zlb9cl66x0j24g-cyrus-sasl-2.1.28.drv",
-        "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-        "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-        "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv"
+        "/nix/store/28nzjzvkavlzirdygq0xyi3050q7w2f0-rdkafka-2.11.1.drv",
+        "/nix/store/2hbqqil9kdaxh2pnbdav6fck0xkk2z54-oniguruma-6.9.10.drv",
+        "/nix/store/67wkbgxbg74qd44lnl0918prcsr23qvc-gcc-wrapper-14.3.0.drv",
+        "/nix/store/dj0irspvgbg3s28z5l95p0yzhwq7zswj-jemalloc-5.3.0-unstable-2025-09-12.drv",
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/15f3w17rarp038wv9f8sfb9k8zm8vs8f-vector-0.51.1.drv",
+      "ref": "/nix/store/k3yfb24asq152abydbqg56mdzq9q4bqy-xgcc-14.3.0.drv"
+    },
+    {
+      "ref": "/nix/store/ck21bbdpc5inhxhkw5bgigmd4i0ygdz9-zlib-1.3.2.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
-        "/nix/store/ank9r0dkyp50iirhrw8m96yl8n1b5fbq-rdkafka-2.11.1.drv",
-        "/nix/store/kdy67ddpz5qpxm1c788r1jg4bf5bzhlm-jemalloc-5.3.0-unstable-2025-09-12.drv",
-        "/nix/store/xd09z9hp96djzb97y37k6pfmd12w3509-gcc-wrapper-14.3.0.drv",
-        "/nix/store/xxn9dkic6iyxa8x331204yk7r2b0557h-oniguruma-6.9.10.drv"
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     },
     {
-      "ref": "/nix/store/bm5kzm1lv0dkrznzc79zl5rwbv71460w-xgcc-14.3.0.drv"
-    },
-    {
-      "ref": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
+      "ref": "/nix/store/rdqv4rrahm28xr9ia41962wpwfp9z7dp-zstd-1.5.7.drv",
       "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv"
-      ]
-    },
-    {
-      "ref": "/nix/store/8brm4045abq27fa7i2v68yx2q5d70mdr-zstd-1.5.7.drv",
-      "dependsOn": [
-        "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-        "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv"
+        "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
+        "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv"
       ]
     }
   ],
   "vulnerabilities": [
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-1153",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-1153",
@@ -1178,7 +1153,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-3198",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-3198",
@@ -1203,7 +1178,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-8224",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-8224",
@@ -1228,7 +1203,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-8225",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-8225",
@@ -1253,7 +1228,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69644",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69644",
@@ -1278,7 +1253,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69645",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69645",
@@ -1303,7 +1278,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69646",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69646",
@@ -1328,7 +1303,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69651",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69651",
@@ -1353,7 +1328,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2026-4647",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-4647",
@@ -1375,7 +1350,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69647",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69647",
@@ -1400,7 +1375,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69648",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69648",
@@ -1425,7 +1400,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69652",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69652",
@@ -1450,7 +1425,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2026-3441",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3441",
@@ -1472,7 +1447,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2026-3442",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3442",
@@ -1494,7 +1469,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69649",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69649",
@@ -1519,7 +1494,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-69650",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69650",
@@ -1544,7 +1519,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-5244",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5244",
@@ -1566,7 +1541,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nny9jdip1v1803lglmlbpvk3kbvkgl75-binutils-2.44.drv",
+      "bom-ref": "/nix/store/63jd5y5wy6p6l7jcbakwj55040790q5x-binutils-2.44.drv",
       "id": "CVE-2025-5245",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5245",
@@ -1588,32 +1563,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/f8dsxfvvf1wlgqlxacj9mjk45p7ajk8r-c-ares-1.34.5.drv",
-      "id": "CVE-2025-62408",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-62408",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-62408",
-            "name": "NVD"
-          },
-          "score": 5.9
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/m507z3g5zq4lv5x99rqb6dfdh5m0xixx-coreutils-9.8.drv",
+      "bom-ref": "/nix/store/mi5v4jqn2swyknvm69x2h7yviz1w9acs-coreutils-9.8.drv",
       "id": "CVE-2016-2781",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2016-2781",
@@ -1635,227 +1585,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-15224",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15224",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15224",
-            "name": "NVD"
-          },
-          "score": 3.1
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-14524",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14524",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14524",
-            "name": "NVD"
-          },
-          "score": 5.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-14819",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14819",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14819",
-            "name": "NVD"
-          },
-          "score": 5.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-15079",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15079",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15079",
-            "name": "NVD"
-          },
-          "score": 5.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2026-3783",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3783",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3783",
-            "name": "NVD"
-          },
-          "score": 5.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-13034",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-13034",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-13034",
-            "name": "NVD"
-          },
-          "score": 5.9
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2025-14017",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14017",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-14017",
-            "name": "NVD"
-          },
-          "score": 6.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2026-1965",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-1965",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-1965",
-            "name": "NVD"
-          },
-          "score": 6.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2026-3784",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3784",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3784",
-            "name": "NVD"
-          },
-          "score": 6.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/nxfmgcdlh44nnd17z62r7588waj6lqln-curl-8.17.0.drv",
-      "id": "CVE-2026-3805",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3805",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-3805",
-            "name": "NVD"
-          },
-          "score": 7.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/0230mn72rcg3jxz11gffnc2anvrrd1x4-gcc-14.3.0.drv",
+      "bom-ref": "/nix/store/hi6lf7icqzb70y983iw21x7crjma307d-gcc-14.3.0.drv",
       "id": "CVE-2023-4039",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-4039",
@@ -1877,7 +1607,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2026-4438",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-4438",
@@ -1899,51 +1629,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-      "id": "CVE-2025-5702",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5702",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5702",
-            "name": "NVD"
-          },
-          "score": 5.6
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
-      "id": "CVE-2025-5745",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5745",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-5745",
-            "name": "NVD"
-          },
-          "score": 5.6
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2025-15281",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15281",
@@ -1965,7 +1651,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2026-0915",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-0915",
@@ -1987,7 +1673,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2026-4046",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-4046",
@@ -2009,7 +1695,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2026-4437",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-4437",
@@ -2031,7 +1717,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/00c0baahgmmfk4084rkv5jk0nw6f849b-glibc-2.40-66.drv",
+      "bom-ref": "/nix/store/n65b8f5a28h8bww5wxfzc8nqs06pmssl-glibc-2.40-218.drv",
       "id": "CVE-2026-0861",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-0861",
@@ -2053,7 +1739,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/a7mdj8k2rifz373vpwz0g539syap99vg-nghttp2-1.67.1.drv",
+      "bom-ref": "/nix/store/qw5zsfqxwgs6l9h9brnhxb6kc08hm7bl-nghttp2-1.67.1.drv",
       "id": "CVE-2026-27135",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-27135",
@@ -2071,289 +1757,11 @@
       "tools": [
         {
           "name": "grype"
-        },
-        {
-          "name": "vulnix"
         }
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-69418",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69418",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69418",
-            "name": "NVD"
-          },
-          "score": 4.0
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-68160",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-68160",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-68160",
-            "name": "NVD"
-          },
-          "score": 4.7
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2026-22796",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22796",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22796",
-            "name": "NVD"
-          },
-          "score": 5.3
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-15469",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15469",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15469",
-            "name": "NVD"
-          },
-          "score": 5.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2026-22795",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22795",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22795",
-            "name": "NVD"
-          },
-          "score": 5.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-15468",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15468",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15468",
-            "name": "NVD"
-          },
-          "score": 5.9
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-66199",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-66199",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-66199",
-            "name": "NVD"
-          },
-          "score": 5.9
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-11187",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-11187",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-11187",
-            "name": "NVD"
-          },
-          "score": 6.1
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-69419",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69419",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69419",
-            "name": "NVD"
-          },
-          "score": 7.4
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-69420",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69420",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69420",
-            "name": "NVD"
-          },
-          "score": 7.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-69421",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69421",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69421",
-            "name": "NVD"
-          },
-          "score": 7.5
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-2673",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-2673",
@@ -2375,7 +1783,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-28388",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-28388",
@@ -2397,7 +1805,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-28389",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-28389",
@@ -2419,7 +1827,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-28390",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-28390",
@@ -2441,7 +1849,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-31790",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-31790",
@@ -2463,32 +1871,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
-      "id": "CVE-2025-15467",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15467",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-15467",
-            "name": "NVD"
-          },
-          "score": 8.8
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-28386",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-28386",
@@ -2510,7 +1893,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-28387",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-28387",
@@ -2524,7 +1907,7 @@
       ]
     },
     {
-      "bom-ref": "/nix/store/i9b04l11qz4j0yffk9w9830wljvv72ld-openssl-3.6.0.drv",
+      "bom-ref": "/nix/store/5y6a9rw2gwj6ifa4icc75xikq31pjhx2-openssl-3.6.1.drv",
       "id": "CVE-2026-31789",
       "source": {
         "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-31789",
@@ -2534,75 +1917,6 @@
       "tools": [
         {
           "name": "grype"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
-      "id": "CVE-2026-27171",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-27171",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-27171",
-            "name": "NVD"
-          },
-          "score": 2.9
-        }
-      ],
-      "tools": [
-        {
-          "name": "grype"
-        },
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
-      "id": "CVE-2023-6992",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-6992",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-6992",
-            "name": "NVD"
-          },
-          "score": 4.0
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
-        }
-      ]
-    },
-    {
-      "bom-ref": "/nix/store/v7b3w85wjm8w2djd87gq4cfla2sp8gx0-zlib-1.3.1.drv",
-      "id": "CVE-2026-22184",
-      "source": {
-        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22184",
-        "name": "NVD"
-      },
-      "ratings": [
-        {
-          "source": {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-22184",
-            "name": "NVD"
-          },
-          "score": 7.8
-        }
-      ],
-      "tools": [
-        {
-          "name": "vulnix"
         }
       ]
     }

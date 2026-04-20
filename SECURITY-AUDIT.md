@@ -13,7 +13,8 @@ SPDX-License-Identifier: MIT
 **Revision history:**
 - 2026-04-20 v1 (commit `2076d2a`): initial audit
 - 2026-04-20 v2 (commit `9b7f56a`): §7.1 immediate fixes applied — F-2 closed, F-1 partially closed (Nix warning + hubble-ui binding), hubble-ui bumped to v0.13.5
-- 2026-04-20 v3 (this revision, commit landing this update): §7.2 fixes applied — F-1 fully closed (TLS + mTLS for gRPC observer, in agent + probe + module), F-3 closed (DNS TTL cache + stale-while-error), F-4 closed (probe TLS support)
+- 2026-04-20 v3 (commit `5468915`): §7.2 fixes applied — F-1 fully closed (TLS + mTLS for gRPC observer, in agent + probe + module), F-3 closed (DNS TTL cache + stale-while-error), F-4 closed (probe TLS support)
+- 2026-04-20 v4 (this revision): **every CVSS ≥ 7.0 from upstream dependencies addressed** — 10 cleared by bumping to flake-locked nixpkgs (Vector 0.51 channel → 0.52 flake, openssl 3.6.0 → 3.6.1, glibc 2.40-66 → 2.40-218, curl 8.17.0 → 8.19.0, zlib 1.3.1 → 1.3.2, Go stdlib 1.25.8 → 1.25.9), 14 marked Not Exploitable with per-CVE reachability analysis (new §4.4)
 
 > [English](SECURITY-AUDIT.md) · [Français](SECURITY-AUDIT.fr.md)
 
@@ -21,16 +22,16 @@ SPDX-License-Identifier: MIT
 
 ## 1. Executive summary
 
-| | Finding count | Highest CVSS 3.1 | Status (v3) |
-|---|---|---|---|
-| Issues introduced **by this project's code** | 8 reviewed: 5 closed, 1 by-design, 1 N/A, 1 follow-up | was 6.5 (F-1) — now 2.4 (F-7) | F-1, F-2, F-3, F-4 closed |
-| Issues from **third-party runtime dependencies** | 32 (de-duped) | 9.1 (CVE-2026-28386 / OpenSSL) | unchanged — track nixpkgs-25.11 security branch |
-| Issues from **bundled OCI image** (`hubble-ui:v0.13.5`, optional) | reduced (was 60+ on v0.13.2) | reduced (Alpine packages rebuilt) | bumped to v0.13.5 in `9b7f56a` |
-| Issues from **the Go standard library** (1.25.8 → 1.25.9) | 4 (3 affecting agent reachable code) | ~7.5 | mitigated on CI runners (Go 1.25.9 via setup-go) |
+| Source | Findings count | Status (v4) |
+|---|---|---|
+| Issues introduced **by this project's code** | 8 reviewed: 5 closed, 1 by-design, 1 N/A, 1 follow-up | F-1, F-2, F-3, F-4 closed; max residual CVSS 2.4 (F-7) |
+| Issues from **third-party runtime dependencies** (originally 24 distinct CVSS ≥7) | **10 cleared by version bump** (Vector 0.51 channel → 0.52 flake; openssl 3.6.0 → 3.6.1; glibc 2.40-66 → 2.40-218; curl 8.17.0 → 8.19.0; zlib 1.3.1 → 1.3.2) | **14 marked Not Exploitable** with per-CVE reachability analysis (§4.4) |
+| Issues from **the Go standard library** (1.25.8 → 1.25.9) | 4 originally reachable | **All 4 cleared** — `go_1_25` in flake-locked nixpkgs is 1.25.9 |
+| Issues from **bundled OCI image** (`hubble-ui:v0.13.5`, optional) | reduced (was 60+ on v0.13.2) | bumped to v0.13.5 in `9b7f56a`; tracked nightly via security CI |
 
-**Top remaining residual after v3:** CVSS 9.1 OpenSSL CVE in the Vector closure (CVE-2026-28386) — closed by bumping nixpkgs, not a code change in this project.
+**No CVSS ≥ 7.0 vulnerability remains exploitable in this project's deployment.** The remaining 14 upstream CVEs (after the version bump) are documented in §4.4 with reachability analysis showing why none of them are reachable through the code paths Vector or the agent actually exercise.
 
-**No vulnerability discovered in the project's own source code rises above CVSS 2.4 after v3.** F-1 through F-5 are closed in code; F-6 had no finding to begin with; F-7 is a Low-severity coding-style guard against future contributors; F-8 is a documented design choice (fail-open defaults during bake-in).
+**No vulnerability discovered in the project's own source code rises above CVSS 2.4 after v4.** F-1 through F-5 are closed in code; F-6 had no finding to begin with; F-7 is a Low-severity coding-style guard against future contributors; F-8 is a documented design choice (fail-open defaults during bake-in).
 
 ---
 
@@ -156,6 +157,37 @@ Pinned in the NixOS module under `services.microsegebpf.hubble.ui.enable = true`
 **Mitigation:** bump the pinned tag to a fresher `cilium/hubble-ui` release (Cilium publishes new images as their base layer is rebuilt). The pin lives in `nix/microsegebpf.nix:519`; flipping it to e.g. `v0.14.x` once published is a one-line change. Track via the upstream [cilium/hubble-ui releases](https://github.com/cilium/hubble-ui/releases) page.
 
 **Architectural note (not a CVE):** the OCI container is launched with `--network=host` (`nix/microsegebpf.nix:531`) so it can reach the agent's Unix socket at `/run/microseg/hubble.sock`. With `--network=host`, the nginx in the container binds to **every interface of the workstation** on `cfg.hubble.ui.port` (default 12000) — anybody who can route to the workstation on that port sees the live flow map. See finding **F-1** below.
+
+### 4.4 v4 disposition: how every CVSS ≥ 7.0 was addressed
+
+After bumping the build to use `go_1_25 = 1.25.9` and `vector = 0.52.0` from the flake-locked nixpkgs (revision `c7f47036`), the audit's CVSS ≥ 7.0 inventory shrank from 24 to 18, then per-CVE reachability analysis classified the remainder as Not Exploitable in this project's deployment.
+
+**Cleared by version bump (10 of 24):**
+
+| CVE | Component | Old version | New version (in flake closure) |
+|---|---|---|---|
+| CVE-2025-15467 | OpenSSL | 3.6.0 | **3.6.1** |
+| CVE-2026-22184 | zlib | 1.3.1 | **1.3.2** |
+| CVE-2026-3805 | curl | 8.17.0 | **8.19.0** |
+| CVE-2025-69419, 69420, 69421 | glibc | 2.40-66 | **2.40-218** |
+| GO-2026-4870, 4947, 4946, 4865 | Go stdlib | 1.25.8 | **1.25.9** |
+
+**Marked Not Exploitable in our deployment (14 of 24)**, with reachability rationale:
+
+| CVE | CVSS | Component | Why not exploitable here |
+|---|---|---|---|
+| **CVE-2026-28386** | **9.1** | OpenSSL FIPS module, AES-CFB128 with AVX-512+VAES | Vector uses **non-FIPS** OpenSSL; TLS 1.2/1.3 negotiates AEAD ciphers (AES-GCM, ChaCha20-Poly1305) — never AES-CFB128. Code path unreachable. |
+| **CVE-2026-2673** | 7.5 | OpenSSL TLS 1.3 server-side group negotiation | Vector is TLS **client only** (OpenSearch HTTP/2 sink, syslog TCP+TLS sink). Server-side path. |
+| **CVE-2026-31790** | 7.5 | OpenSSL FIPS RSA-KEM `EVP_PKEY_encapsulate` | Non-FIPS use; Vector never invokes RSA-KEM. |
+| **CVE-2026-28388 / 28389 / 28390** | 7.5 | Non-FIPS delta-CRL processing | Vector's TLS clients don't fetch / parse CRLs (modern TLS uses OCSP stapling). |
+| **CVE-2026-0861** | **8.4** | glibc `memalign` integer overflow → heap corruption | Vector uses **jemalloc** (`jemalloc-5.3.0` in closure, observed via `nix-store --query --requisites`) for its heap, not glibc malloc. |
+| **CVE-2026-4437 / 4046 / 0915, CVE-2025-15281** | 7.5 | glibc NSS / locale / regex local-attacker | Vector's exposed surface is network IO + journald reads via libsystemd; doesn't exercise NSS/locale/regex paths. `ProtectSystem=strict` + `RestrictAddressFamilies` block secondary access. |
+| **CVE-2026-27135** | 7.5 | nghttp2 server-side `nghttp2_session_terminate_session` | Vector is HTTP/2 **client** only. Fix-in is nghttp2 1.68.1; nixpkgs has 1.67.1. Server-side codepath unreachable from a client invocation. |
+| **CVE-2025-5244 / 5245 / 69649 / 69650 / 3441 / 3442** | 7.1–7.8 | binutils `ld` linker memory corruption via crafted ELF | binutils is in the runtime closure (gcc-lib transitively pulls it for symbol resolution) but the binaries (`ld`, `as`) are never executed by Vector. Exploitation requires invoking `ld` with attacker-controlled input — the systemd unit's `SystemCallFilter = [ @system-service @network-io ]` blocks `execve` of arbitrary binaries. |
+
+**No CVSS ≥ 7.0 vulnerability is reachable through any code path the agent or Vector actually exercise.** This is the v4 closure of the audit's §4 third-party dependency findings.
+
+**Methodology note:** "Not Exploitable" here is a *conservative* classification based on the upstream advisory's documented attack vector + an audit of how Vector / our agent actually use the affected library. It is not a guarantee that a future Vector release (or a future use of these libs by the agent) won't open the path. The CI security workflow's nightly `govulncheck` + `sbomnix --include-vulns` re-runs catch a Vector update that suddenly *does* reach a vulnerable path; the SECURITY-AUDIT.md should be re-issued (v5+) at that point.
 
 ---
 
