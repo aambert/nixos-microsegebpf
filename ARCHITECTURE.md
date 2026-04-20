@@ -44,49 +44,43 @@ operators already know — Hubble UI.
 
 ## 2. Top-level architecture
 
-```
-                            ┌───────────────────────────────────────┐
-                            │             USERSPACE                 │
-                            │                                       │
-                            │  microseg-agent (Go)                  │
-                            │  ┌──────────────┐  ┌───────────────┐  │
-                            │  │ policy/sync  │  │ identity/     │  │
-                            │  │ apply YAML → │  │ Snapshot +    │  │
-                            │  │ BPF maps     │  │ Watcher       │  │
-                            │  └──────┬───────┘  └───────┬───────┘  │
-                            │         │                  │ inotify  │
-                            │         ▼                  ▼          │
-                            │  ┌─────────────────────────────────┐  │
-                            │  │ loader (cilium/ebpf)            │  │
-                            │  │  - load .o, attach cgroupv2     │  │
-                            │  │  - ringbuf.Reader               │  │
-                            │  └────┬────────────────────────────┘  │
-                            │       │                          ▲     │
-                            │       │ ringbuf events           │     │
-                            │       ▼                          │     │
-                            │  ┌─────────────────────────────────┐  │
-                            │  │ observer (gRPC)                 │  │
-                            │  │  - implements observer.proto    │  │
-                            │  │  - serves Hubble UI / probe     │  │
-                            │  └────────────────┬────────────────┘  │
-                            └────────────────────│──────────────────┘
-              ─────────────────────────────────────────────────────
-                            ┌────────────────────│──────────────────┐
-                            │             KERNEL │                  │
-                            │                    │ map updates      │
-                            │  ┌─────────────────▼────────────────┐ │
-                            │  │ BPF maps                         │ │
-                            │  │  egress_v4, ingress_v4 (LPM)     │ │
-                            │  │  egress_v6, ingress_v6 (LPM)     │ │
-                            │  │  microseg_cfg, events (ringbuf)  │ │
-                            │  └────┬─────────────────────────────┘ │
-                            │       │                               │
-                            │  ┌────▼────────┐  ┌────────────────┐  │
-                            │  │ cgroup_skb/ │  │ cgroup_skb/    │  │
-                            │  │ egress      │  │ ingress        │  │
-                            │  └─────────────┘  └────────────────┘  │
-                            │            attached at /sys/fs/cgroup │
-                            └───────────────────────────────────────┘
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
+flowchart TB
+
+subgraph US["⚙ Userspace — microseg-agent (Go)"]
+  direction LR
+  PS[policy/sync<br/>apply YAML → BPF maps]
+  ID[identity/<br/>Snapshot + Watcher]
+  LD[loader (cilium/ebpf)<br/>load .o · attach cgroupv2 · ringbuf.Reader]
+  OB[observer (gRPC)<br/>implements observer.proto<br/>serves Hubble UI / probe]
+  ID -- inotify --> PS
+  PS --> LD
+  ID --> LD
+  LD -- ringbuf events --> OB
+end
+
+subgraph KE["🛡 Kernel — eBPF datapath"]
+  direction LR
+  MAPS[(BPF maps<br/>egress_v4 / ingress_v4 LPM<br/>egress_v6 / ingress_v6 LPM<br/>tls_sni_lpm · tls_alpn_deny<br/>default_cfg · events ringbuf)]
+  HE[cgroup_skb/egress]
+  HI[cgroup_skb/ingress]
+  MAPS --> HE
+  MAPS --> HI
+end
+
+PS -- Map.Update (delta) --> MAPS
+HE -. flow event .-> MAPS
+HI -. flow event .-> MAPS
+
+KE_NOTE([attached at /sys/fs/cgroup root])
+HE --- KE_NOTE
+HI --- KE_NOTE
+
+classDef us fill:#D1FAE5,stroke:#065F46,stroke-width:2px
+classDef ke fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
+class US us
+class KE ke
 ```
 
 Two attach points (egress + ingress) on the cgroupv2 root mean every
@@ -775,10 +769,20 @@ two evaluations of the same input.
 
 Pipeline (four nodes):
 
-```
-journald  ─┐
-           ├─►  remap (parse_json + merge)  ─┬─►  filter exists(.verdict)  ─►  ES sink: indexFlows
-                                              └─►  filter !exists(.verdict) ─►  ES sink: indexAgent
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
+flowchart LR
+  J[journald<br/>include_units = microsegebpf-agent.service<br/>current_boot_only = true]
+  R[remap<br/>parse_json + merge<br/>is_object guard]
+  FF[filter<br/>exists.verdict]
+  FA[filter<br/>!exists.verdict]
+  SF[(elasticsearch sink<br/>indexFlows)]
+  SA[(elasticsearch sink<br/>indexAgent)]
+  J --> R
+  R --> FF --> SF
+  R --> FA --> SA
+  classDef vec fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
+  class J,R,FF,FA,SF,SA vec
 ```
 
 - **Source `microseg_journal`** — `journald` source restricted to
@@ -870,9 +874,13 @@ and on-call paging.
 
 Pipeline (added to the existing flows / agent split):
 
-```
-microseg_filter_flows ──► syslog_format_flows (remap, RFC 5424) ──► syslog_flows  (socket TCP+TLS)
-microseg_filter_agent ──► syslog_format_agent (remap, RFC 5424) ──► syslog_agent  (socket TCP+TLS)
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
+flowchart LR
+  FF[microseg_filter_flows] --> RF[syslog_format_flows<br/>remap RFC 5424] --> SF[(syslog_flows<br/>socket TCP+TLS)]
+  FA[microseg_filter_agent] --> RA[syslog_format_agent<br/>remap RFC 5424] --> SA[(syslog_agent<br/>socket TCP+TLS)]
+  classDef sl fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
+  class FF,RF,SF,FA,RA,SA sl
 ```
 
 Wire format:
