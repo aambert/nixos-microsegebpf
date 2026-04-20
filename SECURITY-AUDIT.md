@@ -53,7 +53,7 @@ SPDX-License-Identifier: MIT
 │  microsegebpf-log-shipper.service                              │
 │  └── Vector 0.51.1 (journald → OpenSearch + syslog)           │
 │                                                                │
-│  hubble-ui (optional, OCI: quay.io/cilium/hubble-ui:v0.13.2)  │
+│  hubble-ui (optional, OCI: quay.io/cilium/hubble-ui:v0.13.5)  │
 │                                                                │
 │  NixOS module (services.microsegebpf.*)                       │
 │  ├── systemd unit hardening                                    │
@@ -143,7 +143,7 @@ All come from upstream packages (Go stdlib, nixpkgs 25.11 baseline, Alpine in th
 
 **Mitigation for all four:** track Go 1.25.9+ in nixpkgs. The dev-shell already uses `go_1_25` (an alias that follows the 1.25.x patch series); a NixOS deployment that pulls a fresh nixpkgs-25.11 commit will get 1.25.9 automatically once the security branch ships it. CI will re-run the lint and the vm-test on that commit.
 
-### 4.3 Hubble UI OCI image (`quay.io/cilium/hubble-ui:v0.13.2`, optional)
+### 4.3 Hubble UI OCI image (`quay.io/cilium/hubble-ui:v0.13.5`, optional — was v0.13.2 pre-`9b7f56a`)
 
 Pinned in the NixOS module under `services.microsegebpf.hubble.ui.enable = true` (default: false). 60+ CVEs reported by `grype` against the Alpine packages baked into the image. The four with the highest reachability:
 

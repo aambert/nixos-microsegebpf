@@ -1220,14 +1220,16 @@ nix/policies/               Bibliothèque composable de policies (mkPolicy + 8 b
 nix/tests/vm-test.nix       nixosTest : verdict drop dans le noyau (L3/L4 + FQDN), SNI exact + wildcard (v4 + v6)
 flake.nix                   Outputs de flake (packages, nixosModules, lib, checks)
 default.nix, shell.nix      Points d'entrée hors flake
-.github/workflows/          GitHub Actions : nix-build (rapide), vm-test (lent)
+.github/workflows/          GitHub Actions : nix-build (rapide), vm-test (lent), security (govulncheck + reuse + SBOM drift + grype hubble-ui, cron nightly)
 examples/policy.yaml        Bundle d'exemple de policies en YAML brut
 examples/tls-policy.yaml    Exemple de policy TLS-aware (sniDeny/alpnDeny)
 examples/fqdn-policy.yaml   Exemple de policy FQDN par hostname (host: example.com)
 examples/deployment/        Flake consommateur d'exemple (la cible GitOps)
-LICENSES/                   Textes de licence SPDX (MIT, CC-BY-SA-4.0)
+LICENSES/                   Textes de licence SPDX (MIT, GPL-2.0-only — bpf/microseg.c est dual-licensed pour les helpers GPL-only du sous-système BPF)
 REUSE.toml                  Annotations REUSE-spec pour fichiers sans header SPDX inline
-ARCHITECTURE.md             Plongée technique sur le datapath eBPF, layout de clé LPM, modèle d'identité
+ARCHITECTURE.md / .fr.md    Plongée technique sur le datapath eBPF, layout de clé LPM, modèle d'identité, peek TLS, pipeline log-shipping (EN + FR)
+SECURITY-AUDIT.md / .fr.md  Audit de sécurité structuré (scoring CVSS 3.1, findings code-review manuelle, matrice reachability par-CVE pour dépendances upstream, roadmap remediation ; EN + FR)
+sbom/                       SBOMs CycloneDX 1.5/1.6 + SPDX 2.3 + CSV pour l'arbre source, modules Go, closure runtime agent, et closure Vector (régénérables via la recette dans `sbom/README.md`)
 ```
 
 ## Limites et roadmap
