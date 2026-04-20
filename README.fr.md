@@ -138,74 +138,42 @@ systemd, uid) au lieu des labels de pod Kubernetes que Cilium exige.
 
 #### Mouvement latéral et egress par-app, illustrés
 
-Trois postes sur le même /24 plat, un bastion corporate, et une
-passerelle internet. Le firewall traditionnel traiterait le LAN
-comme une zone de confiance unique et laisserait chaque poste
-joindre chaque autre sur n'importe quel port ; l'agent eBPF de
-chaque poste transforme le LAN en zone de policy par-host, et le
-filtre egress est par-cgroup. `OK` = autorisé par le rule set ;
-`DROP` = droppé par le hook `cgroup_skb` avant que le paquet
-quitte le poste (ou avant qu'il soit délivré, en ingress).
+Deux vues complémentaires du même parc. `OK` = autorisé par le
+rule set ; `DROP` = droppé par le hook `cgroup_skb` avant que le
+paquet quitte le poste (ou avant qu'il soit délivré, en ingress).
+
+**Vue 1 — Mouvement latéral sur un /24 plat.** Trois postes
+NixOS sur `10.0.0.0/24`, un bastion corporate, et le même flake
+GitOps qui déploie chaque poste. Un firewall traditionnel
+laisserait chaque poste joindre chaque autre sur n'importe quel
+port ; l'agent eBPF de chaque poste transforme le LAN en zones de
+policy par-host.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'12px'}}}%%
-flowchart TB
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
+flowchart LR
 
-GIT["Flake GitOps central<br/>services.microsegebpf - meme module NixOS<br/>+ meme bundle de policies sur chaque poste"]
+GIT["Flake GitOps central<br/>services.microsegebpf<br/>+ bundle de policies"]
 
 subgraph LAN["LAN corporate 10.0.0.0/24 - L2 plat, pas de firewall entre postes"]
-  direction LR
-  subgraph WSA["Poste NixOS A 10.0.0.10<br/>nixos-rebuild switch + microsegebpf-agent"]
-    direction TB
-    A_FF["Firefox<br/>app-firefox.scope"]
-    A_APT["apt<br/>system.slice"]
-    A_SSH["sshd.service"]
-  end
-  subgraph WSB["Poste NixOS B 10.0.0.20<br/>nixos-rebuild switch + microsegebpf-agent"]
-    direction TB
-    B_FF["Firefox"]
-    B_OFF["LibreOffice"]
-    B_SSH["sshd.service"]
-  end
-  subgraph WSC["Poste NixOS C 10.0.0.30<br/>nixos-rebuild switch + microsegebpf-agent"]
-    direction TB
-    C_DEV["VS Code"]
-    C_SSH["sshd.service"]
-  end
-  BAS["Bastion 10.0.0.42<br/>jump host corporate<br/>(n'importe quel OS, pas d'agent requis)"]
+  direction TB
+  WSA["Poste NixOS A 10.0.0.10<br/>+ microsegebpf-agent"]
+  WSB["Poste NixOS B 10.0.0.20<br/>+ microsegebpf-agent"]
+  WSC["Poste NixOS C 10.0.0.30<br/>+ microsegebpf-agent"]
+  BAS["Bastion 10.0.0.42<br/>n'importe quel OS, pas d'agent requis"]
 end
 
-GW["Passerelle internet / NAT"]
-
-subgraph NET["Internet"]
-  direction LR
-  CORP["corporate.com:443"]
-  REPO["repo.corp.com:443"]
-  DOH["1.1.1.1 DoH:443"]
-  FBC["CDN Facebook<br/>fbcdn.net:443"]
-end
-
-GIT -- "deploy-rs / colmena / morph" --> WSA
-GIT -- "deploy-rs / colmena / morph" --> WSB
-GIT -- "deploy-rs / colmena / morph" --> WSC
+GIT -- "nixos-rebuild switch<br/>(deploy-rs / colmena / morph)" --> WSA
+GIT --> WSB
+GIT --> WSC
 
 WSA -- "DROP SMB:445" --> WSB
-WSA -- "DROP ssh depuis pair" --> WSC
 WSB -- "DROP http:80" --> WSC
+WSA -- "DROP ssh depuis pair" --> WSC
 
-BAS -- "OK ssh:22" --> WSA
-BAS -- "OK ssh:22" --> WSB
-BAS -- "OK ssh:22" --> WSC
-
-A_FF -- "OK corp.com:443" --> GW
-A_APT -- "OK repo:443" --> GW
-B_FF -- "DROP DoH 1.1.1.1" --> GW
-B_FF -- "DROP fbcdn" --> GW
-
-GW --> CORP
-GW --> REPO
-GW -. droppe .-> DOH
-GW -. droppe .-> FBC
+BAS -- "OK ssh:22 (whiteliste)" --> WSA
+BAS --> WSB
+BAS --> WSC
 
 style GIT fill:#FCE7F3,stroke:#9D174D,stroke-width:2px
 style LAN fill:#FEF3C7,stroke:#92400E,stroke-width:2px
@@ -213,11 +181,51 @@ style WSA fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style WSB fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style WSC fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style BAS fill:#E5E7EB,stroke:#475569,stroke-width:1.5px,stroke-dasharray: 4 2
+```
+
+**Vue 2 — Egress par-cgroup sur un poste.** Zoom sur Poste-A,
+montrant comment la même passerelle internet délivre des verdicts
+différents selon le cgroup qui a originé le paquet. Le firewall
+traditionnel, qui keys sur (src IP, dst IP, port), soit
+autoriserait tout depuis `10.0.0.10`, soit bloquerait tout —
+aucune granularité par-application.
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
+flowchart LR
+
+subgraph WSA["Poste NixOS A 10.0.0.10 + microsegebpf-agent"]
+  direction TB
+  A_FF["Firefox<br/>app-firefox.scope"]
+  A_APT["apt<br/>system.slice"]
+end
+
+GW["Passerelle internet / NAT"]
+
+subgraph NET["Internet"]
+  direction TB
+  CORP["corporate.com:443"]
+  REPO["repo.corp.com:443"]
+  DOH["1.1.1.1 DoH:443"]
+  FBC["fbcdn.net:443<br/>CDN Facebook"]
+end
+
+A_FF -- "OK corp.com:443" --> GW
+A_FF -- "DROP DoH 1.1.1.1" --> GW
+A_FF -- "DROP fbcdn" --> GW
+A_APT -- "OK repo.corp.com:443" --> GW
+
+GW --> CORP
+GW --> REPO
+GW -. droppe au cgroup_skb .-> DOH
+GW -. droppe au cgroup_skb .-> FBC
+
+style WSA fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
 style GW fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
 style NET fill:#F3F4F6,stroke:#475569,stroke-width:1.5px
 ```
 
-Ce que ça montre :
+Ce que ces vues montrent :
 
   * **Chaque poste est NixOS.** Le même flake déclare le module
     `services.microsegebpf` + le même bundle de policies sur
