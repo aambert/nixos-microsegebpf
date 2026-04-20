@@ -159,6 +159,86 @@ in
         };
       };
     };
+
+    # Centralised log shipping. The agent itself stays focused — it
+    # writes structured JSON to stdout (flow events) and stderr
+    # (control-plane slog), systemd captures both into journald, and
+    # a dedicated Vector instance ships them to OpenSearch. The
+    # agent never speaks HTTP to OpenSearch directly.
+    logs.opensearch = {
+      enable = mkEnableOption "ship microseg-agent logs and flow events to OpenSearch via Vector";
+
+      package = mkOption {
+        type = types.package;
+        default = pkgs.vector;
+        defaultText = lib.literalExpression "pkgs.vector";
+        description = "Vector derivation to use as the journald → OpenSearch shipper.";
+      };
+
+      endpoint = mkOption {
+        type = types.str;
+        example = "https://opensearch.corp.local:9200";
+        description = "Base URL of the OpenSearch cluster (any node will do; Vector handles the bulk endpoint).";
+      };
+
+      indexFlows = mkOption {
+        type = types.str;
+        default = "microseg-flows-%Y.%m.%d";
+        description = ''
+          Strftime-templated index name for flow events (the high-
+          volume stream emitted on stdout by the agent). Daily indices
+          are the OpenSearch idiom for time-series — keeps shard size
+          manageable and rotation cheap.
+        '';
+      };
+
+      indexAgent = mkOption {
+        type = types.str;
+        default = "microseg-agent-%Y.%m.%d";
+        description = "Strftime-templated index name for control-plane logs (the agent's slog stream on stderr).";
+      };
+
+      auth = {
+        user = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "OpenSearch basic-auth user. Leave null for no auth.";
+        };
+        passwordFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Path to a file containing the OpenSearch basic-auth
+            password. Read by Vector at start, never embedded in the
+            unit's command line. Mode must be readable by the
+            log-shipper user (root by default).
+          '';
+        };
+      };
+
+      tls = {
+        caFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "CA certificate path used to verify the OpenSearch endpoint. Null = trust the system store.";
+        };
+        verifyCertificate = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Set to false to skip TLS certificate verification (dev-only, never in production).";
+        };
+      };
+
+      extraSettings = mkOption {
+        type = types.attrs;
+        default = { };
+        description = ''
+          Additional Vector settings merged into the generated config
+          (TOML-equivalent attrset). Use to add transforms, override
+          the buffer mode, etc.
+        '';
+      };
+    };
   };
 
   config = mkIf cfg.enable {
@@ -248,5 +328,177 @@ in
         ];
       };
     };
+
+    # Optional: ship the agent's stdout (flow events) and stderr
+    # (control-plane slog) from journald into OpenSearch via Vector.
+    # See the `logs.opensearch` option block above for the user-facing
+    # knobs.
+    systemd.services.microsegebpf-log-shipper = mkIf cfg.logs.opensearch.enable
+      (let
+        os = cfg.logs.opensearch;
+        hasAuth = os.auth.user != null && os.auth.passwordFile != null;
+
+        # Build the Vector config as a Nix attrset, then serialise to
+        # TOML at evaluation time. This keeps the config reviewable as
+        # data (no string interpolation traps) and lets `extraSettings`
+        # merge in additional sources/transforms idiomatically.
+        baseConfig = lib.recursiveUpdate {
+          # On-disk scratch for buffers and checkpoints. Vector
+          # complains at validate time if this isn't writable, even
+          # for an in-memory pipeline. Backed by systemd's
+          # StateDirectory= below so DynamicUser still works.
+          data_dir = "/var/lib/vector";
+
+          # Single source: journald, restricted to the agent's unit so
+          # we never accidentally ship someone else's logs.
+          sources.microseg_journal = {
+            type = "journald";
+            include_units = [ "microsegebpf-agent.service" ];
+            current_boot_only = true;
+            # Pass MESSAGE through as-is; the parse_json transform
+            # below decodes it.
+          };
+
+          # Parse the JSON body of every journal entry. Vector keeps
+          # the original `.message` field on parse error so a non-JSON
+          # line doesn't break the pipeline. `object!(parsed)` casts
+          # the parsed value (typed as `any`) to an object after the
+          # `is_object` guard, which makes `merge` infallible — VRL
+          # rejects fallible-discarded assignments at compile time.
+          transforms.microseg_parse = {
+            type = "remap";
+            inputs = [ "microseg_journal" ];
+            source = ''
+              parsed, err = parse_json(.message)
+              if err == null && is_object(parsed) {
+                . = merge(., object!(parsed))
+              }
+            '';
+          };
+
+          # Two `filter` transforms instead of a single `route`. Net
+          # effect is identical — flow events go one way, control-
+          # plane logs the other — but a `route` has an implicit
+          # `_unmatched` output, which Vector emits a "no consumer"
+          # warning for. Two filters compose more cleanly and make
+          # the routing condition local to each downstream sink.
+          transforms.microseg_filter_flows = {
+            type = "filter";
+            inputs = [ "microseg_parse" ];
+            condition = ''exists(.verdict)'';
+          };
+          transforms.microseg_filter_agent = {
+            type = "filter";
+            inputs = [ "microseg_parse" ];
+            condition = ''!exists(.verdict)'';
+          };
+
+          # Two sinks, one per index. Vector's "elasticsearch" sink
+          # speaks the OpenSearch REST API natively (same wire format).
+          sinks.opensearch_flows = {
+            type = "elasticsearch";
+            inputs = [ "microseg_filter_flows" ];
+            endpoints = [ os.endpoint ];
+            mode = "bulk";
+            bulk.index = os.indexFlows;
+            healthcheck.enabled = false;
+          };
+          sinks.opensearch_agent = {
+            type = "elasticsearch";
+            inputs = [ "microseg_filter_agent" ];
+            endpoints = [ os.endpoint ];
+            mode = "bulk";
+            bulk.index = os.indexAgent;
+            healthcheck.enabled = false;
+          };
+        } os.extraSettings;
+
+        # Splice TLS + auth into both sinks if configured. Done after
+        # the recursiveUpdate so the user can still override per-sink
+        # via extraSettings if they want different auth per index.
+        withAuth = c:
+          if !hasAuth then c
+          else lib.recursiveUpdate c {
+            sinks.opensearch_flows.auth = {
+              strategy = "basic";
+              user = os.auth.user;
+              password = "\${MICROSEG_OS_PASSWORD}";
+            };
+            sinks.opensearch_agent.auth = {
+              strategy = "basic";
+              user = os.auth.user;
+              password = "\${MICROSEG_OS_PASSWORD}";
+            };
+          };
+
+        withTls = c:
+          if os.tls.caFile == null && os.tls.verifyCertificate then c
+          else lib.recursiveUpdate c {
+            sinks.opensearch_flows.tls = {
+              verify_certificate = os.tls.verifyCertificate;
+            } // lib.optionalAttrs (os.tls.caFile != null) {
+              ca_file = toString os.tls.caFile;
+            };
+            sinks.opensearch_agent.tls = {
+              verify_certificate = os.tls.verifyCertificate;
+            } // lib.optionalAttrs (os.tls.caFile != null) {
+              ca_file = toString os.tls.caFile;
+            };
+          };
+
+        finalConfig = withTls (withAuth baseConfig);
+
+        # Vector accepts TOML, YAML and JSON; we go JSON because Nix's
+        # builtins.toJSON is built-in and round-trips cleanly through
+        # nested attrsets.
+        configFile = pkgs.writeText "microseg-vector.json"
+          (builtins.toJSON finalConfig);
+      in
+      {
+        description = "Vector log shipper: microseg-agent journald → OpenSearch";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "microsegebpf-agent.service" "network-online.target" ];
+        wants = [ "network-online.target" ];
+
+        serviceConfig = {
+          Type = "simple";
+          ExecStart = "${os.package}/bin/vector --config ${configFile}";
+          # Vector doesn't ship sd_notify integration in our pinned
+          # release; same Type=simple rationale as the agent.
+          Restart = "on-failure";
+          RestartSec = "5s";
+          DynamicUser = true;
+          # State directory for Vector's data_dir (buffer checkpoints,
+          # disk-backed buffers if ever enabled via extraSettings).
+          # systemd creates /var/lib/vector under DynamicUser's
+          # private namespace and bind-mounts it for the unit.
+          StateDirectory = "vector";
+          StateDirectoryMode = "0700";
+          # Read journald (member of systemd-journal group is granted
+          # by the JournalDirectory directive below).
+          SupplementaryGroups = [ "systemd-journal" ];
+          # Auth password file is read once at startup and stuffed into
+          # the env var Vector substitutes. Nothing else is privileged.
+          LoadCredential = lib.optional hasAuth
+            "os_password:${toString os.auth.passwordFile}";
+          ExecStartPre = lib.optional hasAuth (pkgs.writeShellScript "microseg-vector-prep" ''
+            export MICROSEG_OS_PASSWORD="$(cat $CREDENTIALS_DIRECTORY/os_password)"
+          '');
+          # General hardening — Vector only needs network egress and
+          # journald read.
+          NoNewPrivileges = true;
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+          SystemCallFilter = [ "@system-service" "@network-io" ];
+          LockPersonality = true;
+          MemoryDenyWriteExecute = false;
+        };
+      });
   };
 }

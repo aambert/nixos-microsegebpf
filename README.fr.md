@@ -335,10 +335,11 @@ Ce que le parser SNI/ALPN voit et ne voit pas, détaillé pour ne pas
 
 ## Recettes
 
-Six exemples concrets couvrant les formes les plus courantes de
-durcissement poste. Chacun est un fragment complet de
-`services.microsegebpf.policies` qu'on peut déposer dans son flake
-de déploiement.
+Sept exemples concrets couvrant les formes les plus courantes de
+durcissement poste. Les six premiers sont des fragments de
+`services.microsegebpf.policies` à déposer dans le flake de
+déploiement ; le septième (centralisation des logs) configure la
+plomberie opérationnelle autour de l'agent.
 
 ### Recette 1 — Forcer le résolveur DNS corporate
 
@@ -674,6 +675,135 @@ in
     soit pleinement reproductible — le trade-off est un rebuild
     par mise à jour de feed.
 
+### Recette 7 — Centralisation des logs vers OpenSearch
+
+**Cas d'usage.** Un poste qui drop un flux malveillant à 03:14
+heure locale ne devrait pas obliger un analyste à se SSH dessus
+pour grepper journald et comprendre. Tu pousses chaque flow event
+et chaque log control-plane dans un cluster OpenSearch parc-large
+— exactement là où le SOC regarde déjà — et l'investigation du
+lendemain matin devient une requête Kibana / OpenSearch
+Dashboards, plus une expédition forensique.
+
+**Pourquoi ça compte.** Le journald local va bien pour un poste
+mais s'effondre à l'échelle parc : pas de corrélation cross-host,
+pas de rétention au-delà du budget disque du poste, pas de hook
+d'alerting. La Hubble UI est super pour de l'exploration
+interactive de flux mais elle est éphémère et host-locale aussi.
+Un store de logs central résout les trois : recherche cross-host,
+rétention semaines-à-mois, et alerting qui se déclenche sur une
+règle Sigma / Wazuh / OSSEC quand le même SNI C2 se fait drop sur
+trois postes en cinq minutes.
+
+```nix
+services.microsegebpf = {
+  enable = true;
+  # ... ton bloc policy + observabilité habituel ...
+
+  logs.opensearch = {
+    enable = true;
+
+    # N'importe quel nœud du cluster ; Vector route en interne
+    # vers le bulk endpoint.
+    endpoint = "https://opensearch.corp.local:9200";
+
+    # Indices quotidiens — l'idiome OpenSearch pour les
+    # time-series. Les tokens strftime sont expandus par Vector
+    # à l'écriture.
+    indexFlows = "microseg-flows-%Y.%m.%d";
+    indexAgent = "microseg-agent-%Y.%m.%d";
+
+    # Auth basique (obligatoire en prod). Le mot de passe est lu
+    # par systemd depuis le fichier au démarrage et passé à
+    # Vector via LoadCredential — jamais en ligne de commande,
+    # jamais en clair dans l'environnement de l'unité.
+    auth.user = "microseg-shipper";
+    auth.passwordFile = "/run/keys/opensearch-microseg.pwd";
+
+    # Pinning TLS sur la CA corporate. verifyCertificate=false
+    # uniquement en lab — le warning du sink journald est
+    # bruyant pour une bonne raison.
+    tls.caFile = "/etc/ssl/certs/corp-internal-ca.pem";
+  };
+};
+```
+
+**Comment ça marche.**
+
+  - L'agent **ne parle pas OpenSearch directement.** Il écrit du
+    JSON structuré sur stdout (une ligne par flow event) et
+    stderr (records slog control-plane). systemd capte les deux
+    dans journald avec `_SYSTEMD_UNIT=microsegebpf-agent.service`.
+  - Le module active une seconde unité systemd
+    (`microsegebpf-log-shipper.service`) qui fait tourner
+    [Vector](https://vector.dev) sous `DynamicUser=true`. La
+    config Vector est générée par Nix sous forme de fichier JSON
+    dans le store, donc reproductible et reviewable comme partie
+    du diff de closure NixOS.
+  - Le pipeline Vector a quatre nœuds :
+    1. `sources.microseg_journal` — source `journald` filtrée
+       sur l'unité de l'agent uniquement (`include_units` =
+       `[ "microsegebpf-agent.service" ]`),
+       `current_boot_only = true`.
+    2. `transforms.microseg_parse` — `remap` VRL qui décode
+       `.message` en JSON et merge les champs parsés à la
+       racine de l'event. Les lignes non-JSON passent inchangées.
+    3. `transforms.microseg_filter_{flows,agent}` — deux
+       transforms `filter` qui splittent sur `exists(.verdict)`
+       pour que les flow events et les records slog atterrissent
+       dans des indices séparés.
+    4. `sinks.opensearch_{flows,agent}` — deux sinks
+       `elasticsearch` (le wire protocol Elasticsearch est le
+       même qu'OpenSearch) qui écrivent dans les indices
+       configurés en mode bulk.
+  - L'unité shipper est sandboxée : `DynamicUser=true`,
+    `ProtectSystem=strict`, `RestrictAddressFamilies` limité à
+    `AF_INET/AF_INET6/AF_UNIX`, syscall filter `@system-service`
+    + `@network-io`. Elle a juste besoin d'egress réseau vers
+    OpenSearch et d'accès lecture journald (accordé via
+    `SupplementaryGroups = [ "systemd-journal" ]`).
+  - **Le découplage compte.** Si le cluster OpenSearch est down,
+    Vector retry avec backoff exponentiel — l'agent et son
+    datapath eBPF continuent. Si l'unité shipper crash, journald
+    continue de buffer et Vector reprend où le curseur s'était
+    arrêté au redémarrage. Il n'y a aucun chemin où une panne du
+    pipeline de logs fait tomber l'enforcement.
+
+**Variations.**
+
+  - **Ajouter des champs à la source** (par ex. tagger chaque
+    event avec le hostname du poste et la zone ANSSI) — utiliser
+    `extraSettings` pour insérer un autre `remap` entre
+    `microseg_parse` et les filtres :
+    ```nix
+    services.microsegebpf.logs.opensearch.extraSettings = {
+      transforms.add_zone = {
+        type = "remap";
+        inputs = [ "microseg_parse" ];
+        source = ''
+          .anssi_zone = "poste-admin"
+          .hostname = get_hostname!()
+        '';
+      };
+      transforms.microseg_filter_flows.inputs = [ "add_zone" ];
+      transforms.microseg_filter_agent.inputs = [ "add_zone" ];
+    };
+    ```
+  - **Cluster différent par stream** (archive froide vs SOC
+    chaud) — override un des sinks via `extraSettings` pour
+    pointer sur un second endpoint avec une auth différente.
+  - **Buffering disque** pour des liens WAN peu fiables — poser
+    `extraSettings.sinks.opensearch_flows.buffer = { type =
+    "disk"; max_size = 268435456; }` (256 MiB de cap). Le
+    `data_dir = /var/lib/vector` est déjà câblé (avec
+    `StateDirectory = "vector"` pour que `DynamicUser` continue
+    de marcher).
+  - **Garder un index OpenSearch par poste** en templatant le
+    nom d'index avec le host : `indexFlows = "microseg-flows-
+    \${HOSTNAME}-%Y.%m.%d";` (Vector expand les variables d'env
+    dans le template d'index ; systemd injecte déjà HOSTNAME
+    dans l'environnement de l'unité).
+
 ## L'intégration Hubble
 
 Hubble UI est une application React qui se connecte à un endpoint gRPC
@@ -937,9 +1067,6 @@ Ce que ce projet **ne fait pas** délibérément :
   Firefox déploient ça progressivement depuis 2024), le SNI interne
   est chiffré et on fail-open silencieusement. Horizon 2-3 ans avant
   que ça devienne le défaut.
-- **Le flush de map à l'Apply** est un sweep complet, pas un delta.
-  Acceptable à l'échelle d'un poste (quelques milliers d'entrées)
-  mais pas pour un équipement classe routeur.
 - **Le scoping TLS par cgroup** n'est pas modélisé : les deny lists
   SNI / ALPN sont globales à l'hôte. Le selector au niveau du
   policy doc est documentaire dans ce cas. Une map keyée
@@ -947,7 +1074,6 @@ Ce que ce projet **ne fait pas** délibérément :
 
 Sur la roadmap :
 
-- Mises à jour de map en delta plutôt que flush-and-fill
 - Action `audit` qui miroite `LOG` en estampillant le flux avec des
   métadonnées forensiques supplémentaires (chemin du binaire, ligne
   de commande)
