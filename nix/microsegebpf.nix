@@ -515,20 +515,43 @@ in
       lib.optional (!cfg.enforce && cfg.policies != [ ])
         "services.microsegebpf.enforce = false: every drop verdict is demoted to log; the eBPF datapath will emit a flow event but NOT return SK_DROP. Use this for the bake-in phase only and flip enforce=true to actually contain compromised workloads."
       ++ lib.optional (cfg.logs.syslog.enable && cfg.logs.syslog.mode != "tcp+tls")
-        "services.microsegebpf.logs.syslog.mode = \"${cfg.logs.syslog.mode}\": flow events and control-plane logs travel UNENCRYPTED to ${cfg.logs.syslog.endpoint}. Use \"tcp+tls\" (RFC 5425, default port 6514) unless you really need legacy compat.";
+        "services.microsegebpf.logs.syslog.mode = \"${cfg.logs.syslog.mode}\": flow events and control-plane logs travel UNENCRYPTED to ${cfg.logs.syslog.endpoint}. Use \"tcp+tls\" (RFC 5425, default port 6514) unless you really need legacy compat."
+      # Hubble gRPC observer has no built-in transport authentication.
+      # On a Unix socket (default) the kernel mediates access via mode
+      # bits + RuntimeDirectoryMode; on a TCP listener anybody who can
+      # route to the host:port streams every flow event the agent
+      # observes — including SNI hostnames the user reaches. Force the
+      # operator to acknowledge the trade-off in the rebuild log.
+      # See SECURITY-AUDIT.md §F-1.
+      ++ lib.optional (!lib.hasPrefix "unix:" cfg.hubble.listen)
+        "services.microsegebpf.hubble.listen = \"${cfg.hubble.listen}\": the gRPC observer has no transport authentication. A TCP listener exposes every flow event (5-tuples + SNI) to anyone who can connect. Keep the default (unix:/run/microseg/hubble.sock) unless you have a host firewall and an authenticated reverse proxy in front, or accept the operational risk explicitly."
+      # hubble-ui in --network=host mode (the previous default) bound
+      # the dashboard to every interface of the workstation. We've
+      # since switched to a podman bridge with 127.0.0.1 host binding;
+      # the warning is a defence-in-depth nudge in case an operator
+      # overrides this via extraOptions.
+      ++ lib.optional cfg.hubble.ui.enable
+        "services.microsegebpf.hubble.ui.enable = true: the dashboard is bound to 127.0.0.1:${toString cfg.hubble.ui.port}. Forward via SSH (ssh -L) for remote access — never publish to a non-loopback interface; the UI shows the workstation's full live flow map.";
 
     # Optional: bring up hubble-ui as a local container/service pointed
     # at our gRPC observer. Upstream ships an OCI image that's easy to
     # run via systemd-nspawn or podman; this is a thin wrapper.
+    #
+    # Important: `--network=host` was the previous default — it bound
+    # nginx in the container to 0.0.0.0:port on the workstation, which
+    # was network-reachable and exposed the full flow map. Now we use
+    # a regular podman bridge network with the host port published on
+    # 127.0.0.1 only; remote access is via `ssh -L`. The volume mount
+    # of /run/microseg lets the container reach the agent's Unix
+    # socket without needing the host's network namespace.
     virtualisation.oci-containers.containers = mkIf cfg.hubble.ui.enable {
       hubble-ui = {
-        image = "quay.io/cilium/hubble-ui:v0.13.2";
-        ports = [ "${toString cfg.hubble.ui.port}:8081" ];
+        image = "quay.io/cilium/hubble-ui:v0.13.5";
+        ports = [ "127.0.0.1:${toString cfg.hubble.ui.port}:8081" ];
         environment = {
           FLOWS_API_ADDR = cfg.hubble.listen;
         };
         extraOptions = [
-          "--network=host"
           "--volume=/run/microseg:/run/microseg:ro"
         ];
       };

@@ -17,6 +17,7 @@
 package policy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -89,6 +90,16 @@ type Rule struct {
 	Protocol string   `yaml:"protocol"` // tcp | udp | "" (= both)
 }
 
+// MaxPolicyFileBytes caps the size of a policy file the agent will
+// parse. Policy bundles in practice top out at a few hundred KB even
+// with large threat-feed expansions (see ports/IP combinatorics in
+// pkg/policy/sync.go::expandRules where maxExpansion = 16384 per
+// rule already constrains downstream growth). The cap is a defence
+// against a billion-laughs / nested-anchor YAML attack — see
+// SECURITY-AUDIT.md §F-2. Bump consciously if your bundle truly
+// requires more.
+const MaxPolicyFileBytes = 16 * 1024 * 1024
+
 func LoadFile(path string) ([]PolicyDoc, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -96,7 +107,19 @@ func LoadFile(path string) ([]PolicyDoc, error) {
 	}
 	defer f.Close()
 
-	dec := yaml.NewDecoder(f)
+	// Read up to cap+1 so we can detect overrun explicitly: a silent
+	// truncation by io.LimitReader would parse a partial file and the
+	// agent would happily install zero policies, which is the worst
+	// possible failure mode for a security control.
+	buf, err := io.ReadAll(io.LimitReader(f, MaxPolicyFileBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("policy read: %w", err)
+	}
+	if int64(len(buf)) > MaxPolicyFileBytes {
+		return nil, fmt.Errorf("policy file %q exceeds cap of %d bytes (set MaxPolicyFileBytes higher only if your bundle truly requires it)", path, MaxPolicyFileBytes)
+	}
+
+	dec := yaml.NewDecoder(bytes.NewReader(buf))
 	var docs []PolicyDoc
 	for {
 		var d PolicyDoc
@@ -104,7 +127,7 @@ func LoadFile(path string) ([]PolicyDoc, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, err
+			return nil, fmt.Errorf("policy decode: %w", err)
 		}
 		if d.Kind == "" {
 			continue
