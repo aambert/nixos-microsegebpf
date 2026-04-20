@@ -335,11 +335,12 @@ Ce que le parser SNI/ALPN voit et ne voit pas, détaillé pour ne pas
 
 ## Recettes
 
-Sept exemples concrets couvrant les formes les plus courantes de
+Huit exemples concrets couvrant les formes les plus courantes de
 durcissement poste. Les six premiers sont des fragments de
 `services.microsegebpf.policies` à déposer dans le flake de
-déploiement ; le septième (centralisation des logs) configure la
-plomberie opérationnelle autour de l'agent.
+déploiement ; les deux derniers (centralisation des logs vers
+OpenSearch et syslog) configurent la plomberie opérationnelle
+autour de l'agent.
 
 ### Recette 1 — Forcer le résolveur DNS corporate
 
@@ -803,6 +804,143 @@ services.microsegebpf = {
     \${HOSTNAME}-%Y.%m.%d";` (Vector expand les variables d'env
     dans le template d'index ; systemd injecte déjà HOSTNAME
     dans l'environnement de l'unité).
+
+### Recette 8 — Forwarding syslog centralisé (RFC 5424 sur TLS)
+
+**Cas d'usage.** Ton SOC a un SIEM (Splunk, Wazuh, ELK, IBM
+QRadar, Microsoft Sentinel, …) qui ingère en syslog. Tu veux
+que chaque flow event et chaque log control-plane de l'agent y
+atterrisse avec le bon code de facility, pour que les pipelines
+de parsing et d'alerting du SIEM fassent leur boulot dès le
+premier jour.
+
+**Pourquoi ça compte.** OpenSearch est super pour la recherche
+ad-hoc mais le workflow incident du SOC passe probablement par
+le SIEM : règles de corrélation, intégration ticketing, mapping
+MITRE ATT&CK, paging on-call. Un SIEM qui sait déjà quoi faire
+d'un `local4.warning` venant d'un poste NixOS s'onboarde plus
+vite qu'un cluster OpenSearch tout neuf que personne n'est
+d'astreinte sur.
+
+**Pourquoi TLS.** Les flow events nomment les postes qui
+droppent du trafic vers des destinations spécifiques sur des
+ports spécifiques — exactement l'inventaire qu'un attaquant
+déjà à l'intérieur veut. Le syslog UDP/514 en clair laisse
+fuiter tout ça à n'importe quel passif sur le chemin. Le syslog-
+sur-TLS RFC 5425 (port 6514) est le défaut moderne ; le module
+défaut `mode = "tcp+tls"` et émet un warning au déploiement si
+tu downgrade en UDP ou TCP clair.
+
+```nix
+services.microsegebpf = {
+  enable = true;
+  # ... ton bloc policy + observabilité habituel ...
+
+  logs.syslog = {
+    enable = true;
+
+    # Collecteur SIEM. Le port 6514 est l'assignation IANA pour
+    # syslog-over-TLS (RFC 5425). Vector se connecte directement
+    # — pas de relais rsyslog ou syslog-ng entre les deux.
+    endpoint = "siem.corp.local:6514";
+
+    # Défaut ; on l'écrit explicitement pour que l'intention
+    # soit reviewable.
+    mode = "tcp+tls";
+
+    # Champ APP-NAME du header RFC 5424. Les SIEMs route
+    # dessus — court (<= 48 chars ASCII) et stable.
+    appName = "microsegebpf";
+
+    # Facilities. `local4` est une convention SIEM courante
+    # pour les logs réseau security-relevant ; `daemon` est le
+    # bucket canonique pour le control-plane de service.
+    facilityFlows = "local4";
+    facilityAgent = "daemon";
+
+    # Pinning de la CA du SIEM. Pour mTLS, ajouter aussi
+    # certFile + keyFile ; la clé est chargée via systemd
+    # LoadCredential donc elle peut vivre sur un chemin que le
+    # dynamic user ne peut pas lire directement (ex.
+    # /etc/ssl/private mode 0640 root:ssl-cert).
+    tls = {
+      caFile  = "/etc/ssl/certs/corp-internal-ca.pem";
+      certFile = "/etc/ssl/certs/microseg-client.pem";   # mTLS, optionnel
+      keyFile  = "/etc/ssl/private/microseg-client.key"; # mTLS, optionnel
+      # keyPassFile = "/run/keys/microseg-key-pass";     # si chiffrée
+      verifyCertificate = true;
+      verifyHostname    = true;
+    };
+  };
+};
+```
+
+**Comment ça marche.**
+
+  - Le module wire un pipeline Vector à côté (ou à la place) de
+    celui pour OpenSearch — même `microsegebpf-log-shipper.service`,
+    même source journald, mêmes transforms parse + filter. Deux
+    transforms `remap` supplémentaires formattent chaque stream
+    en RFC 5424 :
+    ```
+    <PRI>1 TIMESTAMP HOSTNAME APP-NAME - - - JSON-BODY
+    ```
+    `PRI = facility * 8 + severity`. La sévérité est calculée
+    par event depuis le `.level` slog (stream agent) ou le
+    `.verdict` (stream flow) : drop → 4 (warning), log → 5
+    (notice), allow → 6 (info) ; ERROR → 3, WARN → 4, INFO → 6,
+    DEBUG → 7.
+  - Deux sinks `socket` écrivent vers l'endpoint configuré en
+    TCP+TLS avec framing newline-delimited (compatible avec
+    rsyslog `imtcp`, syslog-ng `network()`, Splunk HEC syslog,
+    le listener port 6514 de Wazuh).
+  - Sur le wire, trois events exemple ressemblent à :
+    ```
+    <164>1 2026-04-20T07:53:10.457337Z host microsegebpf - - - {"verdict":"drop","src":"10.0.0.1:443","dst":"1.1.1.1:443","unit":"firefox.service",...}
+    <165>1 2026-04-20T07:53:10.457355Z host microsegebpf - - - {"verdict":"log","src":"10.0.0.1:53","dst":"9.9.9.9:53","unit":"dnsmasq.service",...}
+    <166>1 2026-04-20T07:53:10.457362Z host microsegebpf - - - {"verdict":"allow","src":"10.0.0.1:80","dst":"8.8.8.8:80","unit":"sshd.service",...}
+    ```
+    164 = local4(20) * 8 + warning(4) ; 165 = local4 + notice ;
+    166 = local4 + info. Les SIEMs qui route uniquement sur le
+    PRI vont funneler les drops vers un bucket plus prioritaire
+    sans le moindre parsing custom.
+  - **Le découplage est le même que pour le shipper OpenSearch.**
+    Handshake TLS qui rate ou SIEM down → Vector retry avec
+    backoff, l'agent et le datapath eBPF continuent à enforcer.
+    journald continue de buffer jusqu'à ce que le curseur (dans
+    `/var/lib/vector/`) rattrape.
+
+**Variations.**
+
+  - **OpenSearch ET syslog en même temps** (déploiement SIEM
+    typique) : activer les deux blocs d'options. Ils partagent
+    le même process Vector dans
+    `microsegebpf-log-shipper.service` — un seul process,
+    quatre sinks (deux ES bulk + deux syslog socket).
+  - **mTLS** (le SIEM authentifie le poste) : poser
+    `tls.certFile`, `tls.keyFile` (et `tls.keyPassFile` si la
+    clé est chiffrée). La clé privée est bind-mountée dans
+    l'unité via systemd `LoadCredential` depuis le chemin de
+    secret-management que tu utilises (SOPS, agenix, template
+    vault-agent).
+  - **SIEMs différents par stream** (un pour les verdicts, un
+    pour les logs d'audit chez un autre vendor) : utiliser
+    `extraSettings` pour override `sinks.syslog_flows.address`
+    en gardant le `sinks.syslog_agent` par défaut pointé sur
+    `endpoint`.
+  - **Framing strict octet-counting RFC 5425** (certains
+    collecteurs IBM / legacy enterprise l'exigent) : poser
+    `framing = "bytes"` et ajouter un transform VRL via
+    `extraSettings` qui prepend la longueur ASCII décimale +
+    espace à chaque `.message`. La plupart des collecteurs
+    modernes (rsyslog, syslog-ng, Splunk, Wazuh) acceptent le
+    défaut `newline_delimited` donc t'en auras rarement
+    besoin.
+  - **TCP plain / UDP legacy** (lab, segment on-prem de
+    confiance, ou phase de transition) : poser `mode = "tcp"`
+    ou `mode = "udp"`. Le module émet un warning NixOS au
+    moment de l'eval, le choix est donc explicite et reviewable
+    dans le log de rebuild.
 
 ## L'intégration Hubble
 

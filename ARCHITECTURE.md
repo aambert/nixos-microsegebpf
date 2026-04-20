@@ -753,7 +753,90 @@ Three failure modes the design defends against:
 There is no path where a log-pipeline outage takes down the
 enforcement.
 
-### 10.6 What about Hubble UI?
+### 10.6 Alternate destination: syslog (RFC 5424 over TLS)
+
+The same shipper unit also speaks syslog. Both sinks are
+independent — `logs.opensearch.enable` and `logs.syslog.enable`
+can be true together, in which case the single Vector instance
+maintains four output sinks (two OpenSearch bulk + two syslog
+socket) reading from the same parse + filter chain.
+
+Why two output protocols? OpenSearch is the searchable historical
+store; syslog is the SOC's incident-response ingest path. The
+typical deployment enables both: OpenSearch for the analyst
+running ad-hoc queries, syslog for the SIEM's correlation rules
+and on-call paging.
+
+Pipeline (added to the existing flows / agent split):
+
+```
+microseg_filter_flows ──► syslog_format_flows (remap, RFC 5424) ──► syslog_flows  (socket TCP+TLS)
+microseg_filter_agent ──► syslog_format_agent (remap, RFC 5424) ──► syslog_agent  (socket TCP+TLS)
+```
+
+Wire format:
+
+```
+<PRI>1 TIMESTAMP HOSTNAME APP-NAME - - - JSON-BODY
+```
+
+`PRI = facility * 8 + severity`. Facility is bound at evaluation
+time from `logs.syslog.facility{Flows,Agent}` (default `local4`
+for verdicts, `daemon` for control-plane). The multiplication is
+constant-folded by Nix so the VRL transform reduces to
+`pri = 160 + sev` for the flow stream and `pri = 24 + sev` for
+the agent stream.
+
+Severity is computed per event in VRL:
+
+| Stream | Field consulted | Severity |
+|---|---|---|
+| Flow | `.verdict == "drop"` | 4 (warning) |
+| Flow | `.verdict == "log"` | 5 (notice) |
+| Flow | `.verdict == "allow"` (or anything else) | 6 (info) |
+| Agent | `.level == "ERROR"` | 3 (err) |
+| Agent | `.level == "WARN"` | 4 (warning) |
+| Agent | `.level == "INFO"` | 6 (info) |
+| Agent | `.level == "DEBUG"` | 7 (debug) |
+
+PROCID, MSGID and STRUCTURED-DATA are NIL (`-`) — adding them
+would require either capturing the agent's PID at startup
+(possible via systemd's `MAINPID` but pointless after the next
+restart) or expressing the structured data as a custom IANA
+Vendor Private Enterprise number block. Keeping them NIL keeps
+the wire format SIEM-friendly without forcing an ID assignment.
+
+**Framing.** RFC 5425 mandates ASCII-decimal octet counting
+(`<digits> <space> <payload>`) for syslog-over-TLS. Vector's
+socket sink does not implement that exact framing — its
+`length_delimited` is binary 4-byte big-endian, not ASCII
+decimal. The module therefore defaults to `newline_delimited`,
+which all modern syslog daemons (rsyslog `imtcp`, syslog-ng
+`network()` driver, Splunk, Wazuh) accept on TLS as a
+de-facto extension of the spec. Strict octet-counting is
+reachable through `framing = "bytes"` plus a custom VRL
+prefix transform via `extraSettings`.
+
+**Insecure modes.** `mode = "tcp"` and `mode = "udp"` are
+supported for legacy collectors but trigger a NixOS evaluation-
+time warning (printed by `nixos-rebuild`). Flow events name
+the workstation that dropped traffic to a specific IP on a
+specific port — exactly the inventory an attacker who's
+already inside wants. We make the unencrypted choice explicit
+in the rebuild log so it is reviewable, not silent.
+
+**mTLS.** When `tls.keyFile` is set, the private key is
+bind-mounted into the unit via systemd `LoadCredential`. The
+on-disk path can be anywhere readable by root (e.g.
+`/etc/ssl/private` mode 0640 root:ssl-cert), the dynamic user
+never sees the original file — only the credentials directory
+copy at `/run/credentials/microsegebpf-log-shipper.service/syslog_key`.
+Encrypted keys are supported via `tls.keyPassFile` (read by
+the same LoadCredential machinery, exported as
+`MICROSEG_SL_KEY_PASS` for Vector's `tls.key_pass`
+substitution).
+
+### 10.7 What about Hubble UI?
 
 Hubble UI and the OpenSearch shipper serve different audiences
 and timescales:

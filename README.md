@@ -323,10 +323,11 @@ don't get caught surprised:
 
 ## Recipes
 
-Seven worked examples covering the most common workstation-hardening
+Eight worked examples covering the most common workstation-hardening
 shapes. The first six are `services.microsegebpf.policies` fragments
-you can drop into your deployment flake; the last one (centralised
-log shipping) configures the operational plumbing around the agent.
+you can drop into your deployment flake; the last two (centralised
+log shipping to OpenSearch and syslog) configure the operational
+plumbing around the agent.
 
 ### Recipe 1 — Force the corporate DNS resolver
 
@@ -768,6 +769,133 @@ services.microsegebpf = {
     \${HOSTNAME}-%Y.%m.%d";` (Vector expands env vars in the
     index template; systemd already injects HOSTNAME into the
     unit's environment).
+
+### Recipe 8 — Centralised syslog forwarding (RFC 5424 over TLS)
+
+**Use case.** Your SOC has a SIEM (Splunk, Wazuh, ELK, IBM QRadar,
+Microsoft Sentinel, …) that ingests via syslog. You want every
+flow event and every agent control-plane log to land there with
+the correct facility code so the SIEM's existing parsing and
+alerting pipelines fire on day one.
+
+**Why this matters.** OpenSearch is great for ad-hoc search but
+your SOC's incident workflow probably runs through the SIEM:
+correlation rules, ticketing integration, MITRE ATT&CK mapping,
+on-call paging. A SIEM that already knows what to do with
+`local4.warning` from a NixOS workstation is faster to onboard
+than a brand-new OpenSearch cluster nobody is on-call for.
+
+**Why TLS.** Flow events name the workstations dropping traffic
+to specific destinations on specific ports — exactly the
+inventory an attacker who's already inside wants. Plain UDP/514
+syslog leaks all of that to anyone passive on the path. RFC 5425
+syslog-over-TLS (port 6514) is the modern default; the module
+defaults `mode = "tcp+tls"` and emits a deployment-time warning
+if you downgrade to UDP or plain TCP.
+
+```nix
+services.microsegebpf = {
+  enable = true;
+  # ... your usual policy + observability bits ...
+
+  logs.syslog = {
+    enable = true;
+
+    # SIEM collector. Port 6514 is the IANA assignment for
+    # syslog-over-TLS (RFC 5425). Vector connects directly —
+    # no rsyslog or syslog-ng relay in between.
+    endpoint = "siem.corp.local:6514";
+
+    # Default; spell it out so the intent is reviewable.
+    mode = "tcp+tls";
+
+    # APP-NAME field of the RFC 5424 header. SIEMs route on
+    # this — keep it short (<= 48 ASCII chars) and stable.
+    appName = "microsegebpf";
+
+    # Facilities. `local4` is a common SIEM convention for
+    # security-relevant network logs; `daemon` is the
+    # canonical service control-plane bucket.
+    facilityFlows = "local4";
+    facilityAgent = "daemon";
+
+    # Pin the SIEM's CA. For mTLS, also set certFile + keyFile;
+    # the key is loaded via systemd LoadCredential so it can
+    # live on a path the dynamic user can't read directly
+    # (e.g. /etc/ssl/private mode 0640 root:ssl-cert).
+    tls = {
+      caFile  = "/etc/ssl/certs/corp-internal-ca.pem";
+      certFile = "/etc/ssl/certs/microseg-client.pem";   # mTLS, optional
+      keyFile  = "/etc/ssl/private/microseg-client.key"; # mTLS, optional
+      # keyPassFile = "/run/keys/microseg-key-pass";     # if encrypted
+      verifyCertificate = true;
+      verifyHostname    = true;
+    };
+  };
+};
+```
+
+**How it works.**
+
+  - The module wires a Vector pipeline alongside (or instead of)
+    the OpenSearch one — same `microsegebpf-log-shipper.service`,
+    same journald source, same parse + filter transforms. Two
+    extra `remap` transforms format each stream as RFC 5424:
+    ```
+    <PRI>1 TIMESTAMP HOSTNAME APP-NAME - - - JSON-BODY
+    ```
+    `PRI = facility * 8 + severity`. Severity is computed per
+    event from the slog `.level` (agent stream) or `.verdict`
+    (flow stream): drop → 4 (warning), log → 5 (notice), allow →
+    6 (info); ERROR → 3, WARN → 4, INFO → 6, DEBUG → 7.
+  - Two `socket` sinks write to the configured endpoint over
+    TCP+TLS with newline-delimited framing (compatible with
+    rsyslog `imtcp`, syslog-ng `network()`, Splunk HEC syslog,
+    Wazuh's port 6514 listener).
+  - On the wire, three example events look like:
+    ```
+    <164>1 2026-04-20T07:53:10.457337Z host microsegebpf - - - {"verdict":"drop","src":"10.0.0.1:443","dst":"1.1.1.1:443","unit":"firefox.service",...}
+    <165>1 2026-04-20T07:53:10.457355Z host microsegebpf - - - {"verdict":"log","src":"10.0.0.1:53","dst":"9.9.9.9:53","unit":"dnsmasq.service",...}
+    <166>1 2026-04-20T07:53:10.457362Z host microsegebpf - - - {"verdict":"allow","src":"10.0.0.1:80","dst":"8.8.8.8:80","unit":"sshd.service",...}
+    ```
+    164 = local4(20) * 8 + warning(4); 165 = local4 + notice;
+    166 = local4 + info. SIEMs that route on PRI alone will
+    funnel drops to a higher-attention bucket without any
+    custom parsing.
+  - **Decoupling is the same as the OpenSearch shipper.** TLS
+    handshake fails or SIEM is down → Vector retries with
+    backoff, agent and eBPF datapath keep enforcing. journald
+    keeps buffering until the cursor (in `/var/lib/vector/`)
+    catches up.
+
+**Variations.**
+
+  - **Both OpenSearch and syslog at once** (typical SIEM
+    deployment): enable both option blocks. They share the
+    single `microsegebpf-log-shipper.service` Vector instance —
+    one process, four sinks (two ES bulk + two syslog socket).
+  - **mTLS** (the SIEM authenticates the workstation): set
+    `tls.certFile`, `tls.keyFile` (and `tls.keyPassFile` if
+    the key is encrypted). The private key is bind-mounted
+    into the unit via systemd `LoadCredential` from whatever
+    secret-management path you use (SOPS, agenix, vault-agent
+    template).
+  - **Different SIEMs per stream** (one for verdicts, one for
+    audit logs at a different vendor): use `extraSettings` to
+    override `sinks.syslog_flows.address` while keeping the
+    default `sinks.syslog_agent` pointed at `endpoint`.
+  - **Strict RFC 5425 octet-counting framing** (some IBM /
+    legacy enterprise collectors require it): set `framing =
+    "bytes"` and add a VRL transform via `extraSettings` that
+    prepends the ASCII-decimal length + space to each
+    `.message`. Most modern collectors (rsyslog, syslog-ng,
+    Splunk, Wazuh) accept the default `newline_delimited` so
+    you'll rarely need this.
+  - **Legacy plain TCP / UDP** (lab, on-prem trusted segment,
+    or transitional period): set `mode = "tcp"` or `mode =
+    "udp"`. The module emits a NixOS warning at evaluation time
+    so the choice is explicit and reviewable in the rebuild
+    log.
 
 ## The Hubble integration
 

@@ -787,7 +787,94 @@ Trois modes de panne contre lesquels le design défend :
 Il n'y a aucun chemin où une panne du pipeline de logs fait
 tomber l'enforcement.
 
-### 10.6 Et la Hubble UI dans tout ça ?
+### 10.6 Destination alternative : syslog (RFC 5424 sur TLS)
+
+La même unité shipper parle aussi syslog. Les deux sinks sont
+indépendants — `logs.opensearch.enable` et `logs.syslog.enable`
+peuvent être true ensemble, auquel cas le process Vector unique
+maintient quatre output sinks (deux OpenSearch bulk + deux
+syslog socket) qui lisent depuis la même chaîne parse + filter.
+
+Pourquoi deux protocoles de sortie ? OpenSearch est le store
+historique cherchable ; syslog est le chemin d'ingest pour le
+incident-response du SOC. Le déploiement typique active les
+deux : OpenSearch pour l'analyste qui fait des requêtes ad-hoc,
+syslog pour les règles de corrélation et le paging on-call du
+SIEM.
+
+Pipeline (ajouté au split flows / agent existant) :
+
+```
+microseg_filter_flows ──► syslog_format_flows (remap, RFC 5424) ──► syslog_flows  (socket TCP+TLS)
+microseg_filter_agent ──► syslog_format_agent (remap, RFC 5424) ──► syslog_agent  (socket TCP+TLS)
+```
+
+Format wire :
+
+```
+<PRI>1 TIMESTAMP HOSTNAME APP-NAME - - - JSON-BODY
+```
+
+`PRI = facility * 8 + severity`. La facility est bound au
+moment de l'évaluation depuis `logs.syslog.facility{Flows,Agent}`
+(défaut `local4` pour les verdicts, `daemon` pour le
+control-plane). La multiplication est constant-folded par Nix
+donc le transform VRL se réduit à `pri = 160 + sev` pour le
+stream flow et `pri = 24 + sev` pour le stream agent.
+
+La sévérité est calculée par event en VRL :
+
+| Stream | Champ consulté | Sévérité |
+|---|---|---|
+| Flow | `.verdict == "drop"` | 4 (warning) |
+| Flow | `.verdict == "log"` | 5 (notice) |
+| Flow | `.verdict == "allow"` (ou autre) | 6 (info) |
+| Agent | `.level == "ERROR"` | 3 (err) |
+| Agent | `.level == "WARN"` | 4 (warning) |
+| Agent | `.level == "INFO"` | 6 (info) |
+| Agent | `.level == "DEBUG"` | 7 (debug) |
+
+PROCID, MSGID et STRUCTURED-DATA sont NIL (`-`) — les remplir
+exigerait soit de capturer le PID de l'agent au démarrage
+(possible via le `MAINPID` de systemd mais inutile après le
+prochain restart) soit d'exprimer les données structurées comme
+un bloc IANA Vendor Private Enterprise number custom. Les
+laisser NIL garde le format wire SIEM-friendly sans forcer une
+assignation d'ID.
+
+**Framing.** RFC 5425 mande l'octet counting ASCII décimal
+(`<digits> <space> <payload>`) pour syslog-over-TLS. Le sink
+socket de Vector n'implémente pas exactement ce framing — son
+`length_delimited` est binaire 4-byte big-endian, pas ASCII
+décimal. Le module défaut donc à `newline_delimited`, que tous
+les daemons syslog modernes (rsyslog `imtcp`, syslog-ng driver
+`network()`, Splunk, Wazuh) acceptent en TLS comme une
+extension de facto de la spec. L'octet-counting strict est
+atteignable via `framing = "bytes"` plus un transform VRL
+custom qui prefix via `extraSettings`.
+
+**Modes non-sécurisés.** `mode = "tcp"` et `mode = "udp"`
+sont supportés pour les collecteurs legacy mais déclenchent
+un warning NixOS au moment de l'évaluation (imprimé par
+`nixos-rebuild`). Les flow events nomment le poste qui drop
+du trafic vers une IP spécifique sur un port spécifique —
+exactement l'inventaire que veut un attaquant déjà à
+l'intérieur. On rend le choix non-chiffré explicite dans le
+log de rebuild, donc reviewable, pas silent.
+
+**mTLS.** Quand `tls.keyFile` est posé, la clé privée est
+bind-mountée dans l'unité via `LoadCredential` systemd. Le
+chemin disque peut être n'importe où lisible par root (ex.
+`/etc/ssl/private` mode 0640 root:ssl-cert), le dynamic user
+ne voit jamais le fichier original — seulement la copie dans
+le credentials directory à
+`/run/credentials/microsegebpf-log-shipper.service/syslog_key`.
+Les clés chiffrées sont supportées via `tls.keyPassFile` (lu
+par la même machinerie LoadCredential, exporté comme
+`MICROSEG_SL_KEY_PASS` pour la substitution `tls.key_pass`
+de Vector).
+
+### 10.7 Et la Hubble UI dans tout ça ?
 
 La Hubble UI et le shipper OpenSearch servent des audiences et
 des échelles de temps différentes :

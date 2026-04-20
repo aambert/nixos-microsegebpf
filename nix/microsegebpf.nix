@@ -250,6 +250,184 @@ in
         '';
       };
     };
+
+    # Syslog forwarding. Same shipper unit as OpenSearch; the two
+    # are independent and can be enabled together (typical SIEM
+    # deployment: OpenSearch as the searchable store, syslog as
+    # the SIEM ingest path with retention and alerting wired into
+    # the corp's existing pipeline).
+    #
+    # Default mode is RFC 5425 syslog-over-TLS (port 6514). UDP
+    # and unencrypted TCP are provided for compatibility with
+    # legacy collectors but emit a NixOS warning when used —
+    # security-relevant logs travelling cleartext is not a
+    # configuration we want to make easy.
+    logs.syslog = {
+      enable = mkEnableOption "ship microseg-agent logs and flow events to a syslog endpoint via Vector (default: RFC 5425 syslog-over-TLS)";
+
+      endpoint = mkOption {
+        type = types.str;
+        example = "syslog.corp.local:6514";
+        description = ''
+          host:port of the syslog collector. Port 6514 is the IANA
+          assignment for RFC 5425 syslog-over-TLS; 514 is the
+          legacy plain syslog port. Vector connects directly — no
+          intermediate relay.
+        '';
+      };
+
+      mode = mkOption {
+        type = types.enum [ "tcp+tls" "tcp" "udp" ];
+        default = "tcp+tls";
+        description = ''
+          Transport mode:
+
+          - `tcp+tls`: RFC 5425 syslog over TLS. The only mode
+            appropriate for sending policy-relevant logs across an
+            untrusted network. Mandates octet-counting framing per
+            the RFC.
+          - `tcp`: plain TCP (RFC 6587), no encryption. Use only
+            on a trusted local segment. Emits a warning at
+            evaluation time.
+          - `udp`: legacy BSD syslog (RFC 3164 wire framing on
+            UDP). Lossy, no acknowledgements, no encryption. Use
+            only when the collector cannot speak anything else.
+            Emits a warning at evaluation time.
+        '';
+      };
+
+      appName = mkOption {
+        type = types.str;
+        default = "microsegebpf";
+        description = ''
+          APP-NAME field of the RFC 5424 header, used by SIEMs to
+          route the stream into the right ingest pipeline. Keep
+          short (RFC 5424 limit is 48 ASCII chars).
+        '';
+      };
+
+      facilityFlows = mkOption {
+        type = types.enum [
+          "kern" "user" "mail" "daemon" "auth" "syslog" "lpr"
+          "news" "uucp" "cron" "authpriv" "ftp"
+          "local0" "local1" "local2" "local3"
+          "local4" "local5" "local6" "local7"
+        ];
+        default = "local4";
+        description = ''
+          Syslog facility for flow events (the high-volume stream).
+          `local4` (numeric 20) is a common SIEM convention for
+          security-relevant network logs and is the safe default.
+          Switch to `auth` or `authpriv` if your SIEM routes those
+          into a higher-retention or higher-priority bucket.
+        '';
+      };
+
+      facilityAgent = mkOption {
+        type = types.enum [
+          "kern" "user" "mail" "daemon" "auth" "syslog" "lpr"
+          "news" "uucp" "cron" "authpriv" "ftp"
+          "local0" "local1" "local2" "local3"
+          "local4" "local5" "local6" "local7"
+        ];
+        default = "daemon";
+        description = ''
+          Syslog facility for agent control-plane logs (slog
+          stream on stderr). `daemon` (numeric 3) is the canonical
+          choice for service control-plane chatter and matches what
+          most NixOS services emit.
+        '';
+      };
+
+      framing = mkOption {
+        type = types.enum [ "newline_delimited" "character_delimited" "length_delimited" "bytes" ];
+        default = "newline_delimited";
+        description = ''
+          Framing on TCP / TLS. Vector's `socket` sink supports
+          `newline_delimited`, `character_delimited`,
+          `length_delimited` (4-byte big-endian binary prefix —
+          NOT the same as RFC 5425's ASCII-decimal octet
+          counting!), and `bytes` (no framing — raw bytes).
+
+          Default `newline_delimited` is compatible with rsyslog
+          (`imtcp`), syslog-ng (`network()` driver), Splunk, and
+          most cloud SIEMs. Strict RFC 5425 octet-counting requires
+          `bytes` framing plus a custom VRL transform that
+          prepends the ASCII length — wire that via
+          `extraSettings` if your collector demands it.
+
+          Ignored when `mode = "udp"`.
+        '';
+      };
+
+      tls = {
+        caFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            CA certificate to verify the syslog server's cert
+            (only used when `mode = "tcp+tls"`). Null = trust the
+            system store. Must be readable by the dynamic user
+            (typically /etc/ssl/certs/* with mode 0644).
+          '';
+        };
+        certFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Client certificate for mTLS (only used when
+            `mode = "tcp+tls"`). Pair with `keyFile`. Must be
+            readable by the dynamic user.
+          '';
+        };
+        keyFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Private key for mTLS (only used when `mode =
+            "tcp+tls"`). Loaded via systemd's LoadCredential — the
+            file may be on a path the dynamic user cannot reach
+            directly (e.g. /etc/ssl/private mode 0640 root:ssl-cert),
+            systemd bind-mounts it into the unit's namespace at
+            startup and only the unit can read it.
+          '';
+        };
+        keyPassFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Path to a file containing the passphrase for
+            `keyFile`, if encrypted. Same LoadCredential
+            treatment as `keyFile`.
+          '';
+        };
+        verifyCertificate = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Verify the server certificate against the CA. Set to
+            false ONLY for lab debugging — disabling cert
+            verification on a syslog channel that carries security
+            verdicts undermines the whole point of TLS.
+          '';
+        };
+        verifyHostname = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Verify the server hostname matches its certificate SAN.";
+        };
+      };
+
+      extraSettings = mkOption {
+        type = types.attrs;
+        default = { };
+        description = ''
+          Additional Vector settings merged into the generated
+          config. Use to override buffer mode, add a second sink
+          fan-out (e.g. mirror to a local file), etc.
+        '';
+      };
+    };
   };
 
   config = mkIf cfg.enable {
@@ -317,14 +495,22 @@ in
       };
     };
 
-    # When enforce=false the agent demotes every action="drop" rule
-    # to action="log" at policy expansion time, so the kernel still
-    # emits flow events but never returns SK_DROP. The warning is a
-    # belt-and-suspenders reminder that bake-in mode does not
-    # actually contain anything — flip enforce=true once you have
-    # observed the flow surface for a few weeks.
-    warnings = lib.optional (!cfg.enforce && cfg.policies != [ ])
-      "services.microsegebpf.enforce = false: every drop verdict is demoted to log; the eBPF datapath will emit a flow event but NOT return SK_DROP. Use this for the bake-in phase only and flip enforce=true to actually contain compromised workloads.";
+    # Two evaluation-time warnings:
+    #
+    # 1. enforce=false demotes every drop verdict to log at the
+    #    agent's policy-expansion stage. The flow event still
+    #    fires, but the eBPF program never returns SK_DROP — fine
+    #    for bake-in, dangerous if you forget to flip it.
+    #
+    # 2. plain TCP / UDP syslog leaks security-relevant verdicts
+    #    in cleartext to the configured collector. Keep the
+    #    warning loud so the operator is forced to acknowledge
+    #    the trade-off.
+    warnings =
+      lib.optional (!cfg.enforce && cfg.policies != [ ])
+        "services.microsegebpf.enforce = false: every drop verdict is demoted to log; the eBPF datapath will emit a flow event but NOT return SK_DROP. Use this for the bake-in phase only and flip enforce=true to actually contain compromised workloads."
+      ++ lib.optional (cfg.logs.syslog.enable && cfg.logs.syslog.mode != "tcp+tls")
+        "services.microsegebpf.logs.syslog.mode = \"${cfg.logs.syslog.mode}\": flow events and control-plane logs travel UNENCRYPTED to ${cfg.logs.syslog.endpoint}. Use \"tcp+tls\" (RFC 5425, default port 6514) unless you really need legacy compat.";
 
     # Optional: bring up hubble-ui as a local container/service pointed
     # at our gRPC observer. Upstream ships an OCI image that's easy to
@@ -344,41 +530,51 @@ in
     };
 
     # Optional: ship the agent's stdout (flow events) and stderr
-    # (control-plane slog) from journald into OpenSearch via Vector.
-    # See the `logs.opensearch` option block above for the user-facing
-    # knobs.
-    systemd.services.microsegebpf-log-shipper = mkIf cfg.logs.opensearch.enable
-      (let
+    # (control-plane slog) from journald into one or more
+    # destinations via a single Vector instance. Currently
+    # supported sinks: OpenSearch (HTTP bulk) and syslog (RFC 5425
+    # TLS / RFC 6587 plain TCP / RFC 3164 UDP).
+    #
+    # Both sinks share the same shipper unit — they read from the
+    # same journald source through the same parse + filter
+    # transforms. Enabling both adds two extra sinks; resource
+    # cost is one Vector process either way.
+    systemd.services.microsegebpf-log-shipper =
+      let
         os = cfg.logs.opensearch;
-        hasAuth = os.auth.user != null && os.auth.passwordFile != null;
+        sl = cfg.logs.syslog;
+        anyEnabled = os.enable || sl.enable;
 
-        # Build the Vector config as a Nix attrset, then serialise to
-        # TOML at evaluation time. This keeps the config reviewable as
-        # data (no string interpolation traps) and lets `extraSettings`
-        # merge in additional sources/transforms idiomatically.
+        hasOSAuth = os.auth.user != null && os.auth.passwordFile != null;
+        hasSlMtls = sl.tls.keyFile != null;
+        hasSlKeyPass = sl.tls.keyPassFile != null;
+
+        # RFC 5424 facility names → numeric codes (priority byte
+        # is facility * 8 + severity).
+        facilityCode = name: {
+          kern = 0; user = 1; mail = 2; daemon = 3; auth = 4;
+          syslog = 5; lpr = 6; news = 7; uucp = 8; cron = 9;
+          authpriv = 10; ftp = 11;
+          local0 = 16; local1 = 17; local2 = 18; local3 = 19;
+          local4 = 20; local5 = 21; local6 = 22; local7 = 23;
+        }.${name};
+
+        # Credentials directory is well-known and predictable for a
+        # systemd unit; build the path once for use in the JSON
+        # config that Vector reads at startup.
+        credDir = "/run/credentials/microsegebpf-log-shipper.service";
+
+        # Always-on plumbing: journald source + parse + flow/agent
+        # filters. The sinks themselves are spliced in conditionally.
         baseConfig = lib.recursiveUpdate {
-          # On-disk scratch for buffers and checkpoints. Vector
-          # complains at validate time if this isn't writable, even
-          # for an in-memory pipeline. Backed by systemd's
-          # StateDirectory= below so DynamicUser still works.
           data_dir = "/var/lib/vector";
 
-          # Single source: journald, restricted to the agent's unit so
-          # we never accidentally ship someone else's logs.
           sources.microseg_journal = {
             type = "journald";
             include_units = [ "microsegebpf-agent.service" ];
             current_boot_only = true;
-            # Pass MESSAGE through as-is; the parse_json transform
-            # below decodes it.
           };
 
-          # Parse the JSON body of every journal entry. Vector keeps
-          # the original `.message` field on parse error so a non-JSON
-          # line doesn't break the pipeline. `object!(parsed)` casts
-          # the parsed value (typed as `any`) to an object after the
-          # `is_object` guard, which makes `merge` infallible — VRL
-          # rejects fallible-discarded assignments at compile time.
           transforms.microseg_parse = {
             type = "remap";
             inputs = [ "microseg_journal" ];
@@ -390,12 +586,6 @@ in
             '';
           };
 
-          # Two `filter` transforms instead of a single `route`. Net
-          # effect is identical — flow events go one way, control-
-          # plane logs the other — but a `route` has an implicit
-          # `_unmatched` output, which Vector emits a "no consumer"
-          # warning for. Two filters compose more cleanly and make
-          # the routing condition local to each downstream sink.
           transforms.microseg_filter_flows = {
             type = "filter";
             inputs = [ "microseg_parse" ];
@@ -406,70 +596,153 @@ in
             inputs = [ "microseg_parse" ];
             condition = ''!exists(.verdict)'';
           };
+        } (lib.recursiveUpdate os.extraSettings sl.extraSettings);
 
-          # Two sinks, one per index. Vector's "elasticsearch" sink
-          # speaks the OpenSearch REST API natively (same wire format).
-          sinks.opensearch_flows = {
-            type = "elasticsearch";
-            inputs = [ "microseg_filter_flows" ];
-            endpoints = [ os.endpoint ];
-            mode = "bulk";
-            bulk.index = os.indexFlows;
-            healthcheck.enabled = false;
-          };
-          sinks.opensearch_agent = {
-            type = "elasticsearch";
-            inputs = [ "microseg_filter_agent" ];
-            endpoints = [ os.endpoint ];
-            mode = "bulk";
-            bulk.index = os.indexAgent;
-            healthcheck.enabled = false;
-          };
-        } os.extraSettings;
+        # ------------- OpenSearch sinks -------------
+        withOpenSearch = c:
+          if !os.enable then c
+          else lib.recursiveUpdate c (lib.recursiveUpdate {
+            sinks.opensearch_flows = {
+              type = "elasticsearch";
+              inputs = [ "microseg_filter_flows" ];
+              endpoints = [ os.endpoint ];
+              mode = "bulk";
+              bulk.index = os.indexFlows;
+              healthcheck.enabled = false;
+            } // lib.optionalAttrs hasOSAuth {
+              auth = { strategy = "basic"; user = os.auth.user; password = "\${MICROSEG_OS_PASSWORD}"; };
+            } // lib.optionalAttrs (os.tls.caFile != null || !os.tls.verifyCertificate) {
+              tls = { verify_certificate = os.tls.verifyCertificate; }
+                // lib.optionalAttrs (os.tls.caFile != null) { ca_file = toString os.tls.caFile; };
+            };
+            sinks.opensearch_agent = {
+              type = "elasticsearch";
+              inputs = [ "microseg_filter_agent" ];
+              endpoints = [ os.endpoint ];
+              mode = "bulk";
+              bulk.index = os.indexAgent;
+              healthcheck.enabled = false;
+            } // lib.optionalAttrs hasOSAuth {
+              auth = { strategy = "basic"; user = os.auth.user; password = "\${MICROSEG_OS_PASSWORD}"; };
+            } // lib.optionalAttrs (os.tls.caFile != null || !os.tls.verifyCertificate) {
+              tls = { verify_certificate = os.tls.verifyCertificate; }
+                // lib.optionalAttrs (os.tls.caFile != null) { ca_file = toString os.tls.caFile; };
+            };
+          } { });
 
-        # Splice TLS + auth into both sinks if configured. Done after
-        # the recursiveUpdate so the user can still override per-sink
-        # via extraSettings if they want different auth per index.
-        withAuth = c:
-          if !hasAuth then c
+        # ------------- Syslog sinks -------------
+        # VRL formatter that rewrites .message in place to a valid
+        # RFC 5424 line:
+        #
+        #   <PRI>1 TIMESTAMP HOSTNAME APP-NAME - - - JSON-BODY
+        #
+        # Severity is computed per event from the slog .level (agent
+        # stream) or .verdict (flow stream). Facility is fixed per
+        # stream and baked in at Nix evaluation time. PROCID, MSGID
+        # and STRUCTURED-DATA are NIL ("-") — SIEMs that need them
+        # can be added via extraSettings without changing the body.
+        #
+        # Imperative VRL on purpose: the equivalent expression-form
+        # `sev = if ... { ... }` with nested `else if` chains
+        # confuses VRL's type inference (bound variable disappears
+        # at use site). Plain assignment with default is unambiguous
+        # and reads the same.
+        syslogFormatVRL = facility: ''
+          sev = 6
+          if exists(.level) {
+            lvl = to_string(.level) ?? "INFO"
+            if lvl == "ERROR" { sev = 3 }
+            if lvl == "WARN"  { sev = 4 }
+            if lvl == "INFO"  { sev = 6 }
+            if lvl == "DEBUG" { sev = 7 }
+          }
+          if exists(.verdict) {
+            v = to_string(.verdict) ?? "allow"
+            if v == "drop" { sev = 4 }
+            if v == "log"  { sev = 5 }
+          }
+
+          # PRI = facility * 8 + severity. Facility is bound at
+          # evaluation time so the multiplication is constant-folded
+          # into the integer literal below.
+          pri = ${toString (facilityCode facility * 8)} + sev
+
+          ts = format_timestamp!(now(), "%Y-%m-%dT%H:%M:%S%.6fZ")
+          hn = to_string(.host) ?? "-"
+
+          body = encode_json(.)
+          .message = "<" + to_string(pri) + ">1 " + ts + " " + hn + " ${sl.appName} - - - " + body
+        '';
+
+        syslogSinkBase = inputName: {
+          type = "socket";
+          inputs = [ inputName ];
+          mode = if sl.mode == "udp" then "udp" else "tcp";
+          address = sl.endpoint;
+          encoding.codec = "text";
+        } // lib.optionalAttrs (sl.mode != "udp") {
+          framing.method = sl.framing;
+        } // lib.optionalAttrs (sl.mode == "tcp+tls") {
+          tls = {
+            enabled = true;
+            verify_certificate = sl.tls.verifyCertificate;
+            verify_hostname = sl.tls.verifyHostname;
+          } // lib.optionalAttrs (sl.tls.caFile != null) {
+            ca_file = toString sl.tls.caFile;
+          } // lib.optionalAttrs (sl.tls.certFile != null) {
+            crt_file = toString sl.tls.certFile;
+          } // lib.optionalAttrs hasSlMtls {
+            # Loaded via systemd LoadCredential below; the path is
+            # the well-known credentials directory.
+            key_file = "${credDir}/syslog_key";
+          } // lib.optionalAttrs hasSlKeyPass {
+            key_pass = "\${MICROSEG_SL_KEY_PASS}";
+          };
+        };
+
+        withSyslog = c:
+          if !sl.enable then c
           else lib.recursiveUpdate c {
-            sinks.opensearch_flows.auth = {
-              strategy = "basic";
-              user = os.auth.user;
-              password = "\${MICROSEG_OS_PASSWORD}";
+            transforms.syslog_format_flows = {
+              type = "remap";
+              inputs = [ "microseg_filter_flows" ];
+              source = syslogFormatVRL sl.facilityFlows;
             };
-            sinks.opensearch_agent.auth = {
-              strategy = "basic";
-              user = os.auth.user;
-              password = "\${MICROSEG_OS_PASSWORD}";
+            transforms.syslog_format_agent = {
+              type = "remap";
+              inputs = [ "microseg_filter_agent" ];
+              source = syslogFormatVRL sl.facilityAgent;
             };
+            sinks.syslog_flows = syslogSinkBase "syslog_format_flows";
+            sinks.syslog_agent = syslogSinkBase "syslog_format_agent";
           };
 
-        withTls = c:
-          if os.tls.caFile == null && os.tls.verifyCertificate then c
-          else lib.recursiveUpdate c {
-            sinks.opensearch_flows.tls = {
-              verify_certificate = os.tls.verifyCertificate;
-            } // lib.optionalAttrs (os.tls.caFile != null) {
-              ca_file = toString os.tls.caFile;
-            };
-            sinks.opensearch_agent.tls = {
-              verify_certificate = os.tls.verifyCertificate;
-            } // lib.optionalAttrs (os.tls.caFile != null) {
-              ca_file = toString os.tls.caFile;
-            };
-          };
+        finalConfig = withSyslog (withOpenSearch baseConfig);
 
-        finalConfig = withTls (withAuth baseConfig);
-
-        # Vector accepts TOML, YAML and JSON; we go JSON because Nix's
-        # builtins.toJSON is built-in and round-trips cleanly through
-        # nested attrsets.
         configFile = pkgs.writeText "microseg-vector.json"
           (builtins.toJSON finalConfig);
+
+        # ExecStartPre: read every credential file into the matching
+        # env var Vector substitutes at start time. Skipped entirely
+        # if neither auth path is configured.
+        prepScript = pkgs.writeShellScript "microseg-vector-prep" (
+          lib.optionalString hasOSAuth ''
+            MICROSEG_OS_PASSWORD="$(cat "$CREDENTIALS_DIRECTORY/os_password")"
+            export MICROSEG_OS_PASSWORD
+          '' +
+          lib.optionalString hasSlKeyPass ''
+            MICROSEG_SL_KEY_PASS="$(cat "$CREDENTIALS_DIRECTORY/syslog_key_pass")"
+            export MICROSEG_SL_KEY_PASS
+          ''
+        );
       in
-      {
-        description = "Vector log shipper: microseg-agent journald → OpenSearch";
+      mkIf anyEnabled {
+        description =
+          "Vector log shipper: microseg-agent journald → " +
+          (lib.concatStringsSep " + " (
+            lib.optional os.enable "OpenSearch" ++
+            lib.optional sl.enable "syslog (${sl.mode})"
+          ));
         wantedBy = [ "multi-user.target" ];
         after = [ "microsegebpf-agent.service" "network-online.target" ];
         wants = [ "network-online.target" ];
@@ -477,29 +750,26 @@ in
         serviceConfig = {
           Type = "simple";
           ExecStart = "${os.package}/bin/vector --config ${configFile}";
-          # Vector doesn't ship sd_notify integration in our pinned
-          # release; same Type=simple rationale as the agent.
           Restart = "on-failure";
           RestartSec = "5s";
           DynamicUser = true;
-          # State directory for Vector's data_dir (buffer checkpoints,
-          # disk-backed buffers if ever enabled via extraSettings).
-          # systemd creates /var/lib/vector under DynamicUser's
-          # private namespace and bind-mounts it for the unit.
           StateDirectory = "vector";
           StateDirectoryMode = "0700";
-          # Read journald (member of systemd-journal group is granted
-          # by the JournalDirectory directive below).
           SupplementaryGroups = [ "systemd-journal" ];
-          # Auth password file is read once at startup and stuffed into
-          # the env var Vector substitutes. Nothing else is privileged.
-          LoadCredential = lib.optional hasAuth
-            "os_password:${toString os.auth.passwordFile}";
-          ExecStartPre = lib.optional hasAuth (pkgs.writeShellScript "microseg-vector-prep" ''
-            export MICROSEG_OS_PASSWORD="$(cat $CREDENTIALS_DIRECTORY/os_password)"
-          '');
-          # General hardening — Vector only needs network egress and
-          # journald read.
+
+          # Each LoadCredential entry bind-mounts the source file
+          # into $CREDENTIALS_DIRECTORY/<name>, readable by the
+          # dynamic user only. The source path itself can be on a
+          # restricted location (e.g. /etc/ssl/private mode 0640).
+          LoadCredential =
+            lib.optional hasOSAuth "os_password:${toString os.auth.passwordFile}" ++
+            lib.optional hasSlMtls "syslog_key:${toString sl.tls.keyFile}" ++
+            lib.optional hasSlKeyPass "syslog_key_pass:${toString sl.tls.keyPassFile}";
+
+          ExecStartPre = lib.optional (hasOSAuth || hasSlKeyPass) prepScript;
+
+          # General hardening — Vector only needs network egress
+          # and journald read.
           NoNewPrivileges = true;
           ProtectSystem = "strict";
           ProtectHome = true;
@@ -513,6 +783,6 @@ in
           LockPersonality = true;
           MemoryDenyWriteExecute = false;
         };
-      });
+      };
   };
 }
