@@ -20,9 +20,7 @@ The diagram below shows the four trust layers (kernel eBPF datapath,
 agent userspace, optional co-located services, configuration plane +
 external endpoints), how a packet flows from the cgroup_skb hook
 through the LPM tries to a verdict, how flow events reach Hubble UI
-and the SOC, and where every CVE-scored hardening surface lives. Edit
-the canonical source on
-[Lucid](https://lucid.app/lucidchart/3c6f7cd3-fd85-4a27-92d5-5c3a8bd26d47/view).
+and the SOC, and where every CVE-scored hardening surface lives.
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {

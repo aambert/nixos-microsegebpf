@@ -22,8 +22,6 @@ optionnels, plan de configuration + endpoints externes), comment un
 paquet circule du hook cgroup_skb à travers les LPM tries jusqu'au
 verdict, comment les flow events arrivent dans la Hubble UI et le
 SOC, et où vit chaque surface de durcissement scorée par CVE.
-Source canonique éditable sur
-[Lucid](https://lucid.app/lucidchart/3c6f7cd3-fd85-4a27-92d5-5c3a8bd26d47/view).
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
