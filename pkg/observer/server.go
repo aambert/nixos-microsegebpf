@@ -16,6 +16,9 @@ package observer
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -23,6 +26,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -30,6 +34,53 @@ import (
 	observerpb "github.com/cilium/cilium/api/v1/observer"
 	relaypb "github.com/cilium/cilium/api/v1/relay"
 )
+
+// TLSConfig describes the optional transport credentials for the gRPC
+// observer. Zero value (all fields empty) means plaintext — the right
+// default for the Unix-socket setup. For a TCP listener, set CertFile +
+// KeyFile at minimum. Set ClientCAFile to require mTLS.
+//
+// See SECURITY-AUDIT.md §F-1 for why TCP listener without TLS is loud.
+type TLSConfig struct {
+	CertFile      string // server cert (PEM)
+	KeyFile       string // server key (PEM)
+	ClientCAFile  string // CA bundle for verifying client certs (mTLS)
+	RequireClient bool   // require + verify a valid client cert
+}
+
+func (t TLSConfig) enabled() bool {
+	return t.CertFile != "" && t.KeyFile != ""
+}
+
+func (t TLSConfig) buildCreds() (credentials.TransportCredentials, error) {
+	cert, err := tls.LoadX509KeyPair(t.CertFile, t.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load server cert/key: %w", err)
+	}
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+	if t.ClientCAFile != "" {
+		caPEM, err := os.ReadFile(t.ClientCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read client CA: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("client CA %q parsed no certificates", t.ClientCAFile)
+		}
+		cfg.ClientCAs = pool
+		if t.RequireClient {
+			cfg.ClientAuth = tls.RequireAndVerifyClientCert
+		} else {
+			cfg.ClientAuth = tls.VerifyClientCertIfGiven
+		}
+	} else if t.RequireClient {
+		return nil, fmt.Errorf("RequireClient=true needs ClientCAFile to be set")
+	}
+	return credentials.NewTLS(cfg), nil
+}
 
 // Server holds the gRPC listener, the bounded ring of recent flows, and
 // the set of live subscribers (one per active GetFlows stream).
@@ -80,8 +131,11 @@ func (s *Server) Publish(f *flowpb.Flow) {
 }
 
 // Serve binds to `addr` (Unix socket path prefixed with "unix:" or a
-// TCP host:port) and blocks until ctx is cancelled.
-func (s *Server) Serve(ctx context.Context, addr string) error {
+// TCP host:port) and blocks until ctx is cancelled. When `tlsCfg` is
+// non-zero (CertFile + KeyFile set) the server wraps the listener with
+// TLS — required for any TCP listener that's reachable beyond the
+// loopback interface. See SECURITY-AUDIT.md §F-1.
+func (s *Server) Serve(ctx context.Context, addr string, tlsCfg TLSConfig) error {
 	network := "tcp"
 	target := addr
 	if len(addr) > 5 && addr[:5] == "unix:" {
@@ -92,7 +146,16 @@ func (s *Server) Serve(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-	s.gs = grpc.NewServer()
+
+	var opts []grpc.ServerOption
+	if tlsCfg.enabled() {
+		creds, err := tlsCfg.buildCreds()
+		if err != nil {
+			return fmt.Errorf("tls: %w", err)
+		}
+		opts = append(opts, grpc.Creds(creds))
+	}
+	s.gs = grpc.NewServer(opts...)
 	observerpb.RegisterObserverServer(s.gs, s)
 
 	go func() {

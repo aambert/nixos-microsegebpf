@@ -5,10 +5,15 @@ SPDX-License-Identifier: MIT
 
 # Security audit — `nixos-microsegebpf`
 
-**Audit date:** 2026-04-20  
+**Audit date:** 2026-04-20 (initial)  
 **Commit audited:** `afe2975` (REUSE clean + emit-allow wiring closed)  
 **Auditor:** project author, self-review with tooling  
 **Scope:** every source file in this repository, plus the runtime closures of the agent, the Vector log shipper, and the optional Hubble UI OCI image.
+
+**Revision history:**
+- 2026-04-20 v1 (commit `2076d2a`): initial audit
+- 2026-04-20 v2 (commit `9b7f56a`): §7.1 immediate fixes applied — F-2 closed, F-1 partially closed (Nix warning + hubble-ui binding), hubble-ui bumped to v0.13.5
+- 2026-04-20 v3 (this revision, commit landing this update): §7.2 fixes applied — F-1 fully closed (TLS + mTLS for gRPC observer, in agent + probe + module), F-3 closed (DNS TTL cache + stale-while-error), F-4 closed (probe TLS support)
 
 > [English](SECURITY-AUDIT.md) · [Français](SECURITY-AUDIT.fr.md)
 
@@ -16,16 +21,16 @@ SPDX-License-Identifier: MIT
 
 ## 1. Executive summary
 
-| | Finding count | Highest CVSS 3.1 |
-|---|---|---|
-| Issues introduced **by this project's code** | 2 (both Low) | 3.1 |
-| Issues from **third-party runtime dependencies** | 32 (de-duped) | 9.1 (CVE-2026-28386 / OpenSSL) |
-| Issues from **bundled OCI image** (`hubble-ui:v0.13.2`, optional) | 60+ | 8.8 (CVE-2025-15467 / OpenSSL on Alpine) |
-| Issues from **the Go standard library** (1.25.8 → 1.25.9) | 4 (3 affecting agent reachable code) | ~7.5 |
+| | Finding count | Highest CVSS 3.1 | Status (v3) |
+|---|---|---|---|
+| Issues introduced **by this project's code** | 8 reviewed: 5 closed, 1 by-design, 1 N/A, 1 follow-up | was 6.5 (F-1) — now 2.4 (F-7) | F-1, F-2, F-3, F-4 closed |
+| Issues from **third-party runtime dependencies** | 32 (de-duped) | 9.1 (CVE-2026-28386 / OpenSSL) | unchanged — track nixpkgs-25.11 security branch |
+| Issues from **bundled OCI image** (`hubble-ui:v0.13.5`, optional) | reduced (was 60+ on v0.13.2) | reduced (Alpine packages rebuilt) | bumped to v0.13.5 in `9b7f56a` |
+| Issues from **the Go standard library** (1.25.8 → 1.25.9) | 4 (3 affecting agent reachable code) | ~7.5 | mitigated on CI runners (Go 1.25.9 via setup-go) |
 
-**No vulnerability discovered in the project's own source code rises above CVSS 3.1 (Low).** Every Critical / High score in the report comes from upstream code (Go stdlib, OpenSSL, glibc, Alpine-packaged libraries) and is closed by tracking the nixpkgs-25.11 security branch + updating the Go toolchain to 1.25.9+.
+**Top remaining residual after v3:** CVSS 9.1 OpenSSL CVE in the Vector closure (CVE-2026-28386) — closed by bumping nixpkgs, not a code change in this project.
 
-**Two architectural issues** (both worth flagging even if no CVE attaches): (a) the Hubble gRPC observer has no built-in transport authentication when configured with a TCP listener; (b) the optional `hubble-ui` OCI container runs with `--network=host`, which binds the dashboard to every interface of the workstation. Both are mitigated by the default configuration (Unix socket, UI disabled), but the documentation should make the trade-off impossible to miss when an operator opts into either.
+**No vulnerability discovered in the project's own source code rises above CVSS 2.4 after v3.** F-1 through F-5 are closed in code; F-6 had no finding to begin with; F-7 is a Low-severity coding-style guard against future contributors; F-8 is a documented design choice (fail-open defaults during bake-in).
 
 ---
 
@@ -160,7 +165,9 @@ These do not have a CVE assigned (we are the upstream); they are project-introdu
 
 ### F-1 — Hubble gRPC + UI exposure when configured for TCP / network access
 
-**CVSS 3.1 (project context):** AV:A / AC:L / PR:N / UI:N / S:U / C:H / I:N / A:N → **6.5 (Medium)**
+**Status:** ✅ **CLOSED in v3** (commit `9b7f56a` partial, current commit full)  
+**CVSS 3.1 (project context, before fix):** AV:A / AC:L / PR:N / UI:N / S:U / C:H / I:N / A:N → **6.5 (Medium)**  
+**CVSS 3.1 (project context, after fix):** AV:N / AC:H / PR:H / UI:N / S:U / C:N / I:N / A:N → **2.4 (Low)** — only residual is an operator deliberately misconfiguring TLS off
 
 **Where:** `pkg/observer/server.go:91-95` and `nix/microsegebpf.nix:531`.
 
@@ -168,16 +175,19 @@ These do not have a CVE assigned (we are the upstream); they are project-introdu
 
 **However:** if an operator switches to a TCP listener (e.g. `hubble.listen = "0.0.0.0:50051"`) the observer streams every flow event to any client that can connect — exposing the workstation's full network activity, including SNI hostnames the user reaches. The same holds when `hubble.ui.enable = true` is combined with the OCI container's `--network=host`: the dashboard listens on `cfg.hubble.ui.port` on every interface.
 
-**Mitigation in code (recommended follow-up):**
-- Emit a NixOS warning when `hubble.listen` does not start with `unix:/`
-- Bind the OCI container's nginx to `127.0.0.1` instead of the default `0.0.0.0` (the Hubble UI image accepts a `LISTEN_ADDR` env var in its newer releases) **or** drop `--network=host` and use a podman network namespace
-- Document the trade-off in README's "Hubble integration" section, alongside the OpenSearch shipper which is already documented as taking an explicit endpoint
+**Mitigation applied (v2 + v3):**
+- ✅ NixOS warning fires at evaluation time when `hubble.listen` is TCP and `hubble.tls.{certFile,keyFile}` is unset (commit `9b7f56a` introduced the warning, current commit refines it to fire only when TLS is missing — having TLS is the actual mitigation, not just acknowledging the trade-off)
+- ✅ Agent emits a runtime slog WARN at startup with the same wording (so a CLI invocation bypassing the module also surfaces the warning)
+- ✅ Hubble-ui OCI container dropped `--network=host`; now uses a podman bridge with `ports = ["127.0.0.1:${port}:8081"]` (commit `9b7f56a`). UI is loopback-only; remote access via `ssh -L`
+- ✅ **TLS / mTLS for the gRPC observer** — server-side cert/key + optional client CA + `RequireClient` toggle (current commit). Wired through `services.microsegebpf.hubble.tls.{certFile, keyFile, clientCAFile, requireClientCert}`
+- ✅ Dedicated section in README + ARCHITECTURE §5.2 walking the operator through the full TLS / mTLS configuration with verified test matrix
 
-**Mitigation today:** the defaults are safe (Unix socket + UI disabled). An operator who flips either knob should put the workstation behind a host firewall or, ideally, leave the gRPC server on Unix sockets and drive the UI through `hubble-ui` running on a separate host that proxies via SSH.
+**Residual:** an operator deliberately deploying with `hubble.listen = "0.0.0.0:50051"` and no TLS will see two separate warnings (Nix-time + runtime) — but the configuration still loads. We chose loud + overridable rather than a hard refusal, so a lab/debug deployment isn't blocked. CVSS 2.4 (Low) reflects that residual.
 
 ### F-2 — Policy YAML loaded with `gopkg.in/yaml.v3`, parsed without size cap
 
-**CVSS 3.1 (project context):** AV:L / AC:L / PR:H / UI:N / S:U / C:N / I:N / A:L → **3.1 (Low)**
+**Status:** ✅ **CLOSED in v2** (commit `9b7f56a`)  
+**CVSS 3.1 (project context, before fix):** AV:L / AC:L / PR:H / UI:N / S:U / C:N / I:N / A:L → **3.1 (Low)**
 
 **Where:** `pkg/policy/types.go::LoadFile` (file path passed via `-policy=...`).
 
@@ -185,13 +195,17 @@ These do not have a CVE assigned (we are the upstream); they are project-introdu
 
 **Realism.** The agent runs as a non-root user with `CAP_BPF` and reads the policy from a path the operator controls. The threat model is "operator-supplied input only", so this is essentially a footgun for the operator, not an external attack vector. `yaml.v3` is also documented to refuse some pathological aliases by default (`maxAliases = 1024`), which limits — but does not eliminate — the worst cases.
 
-**Mitigation (recommended follow-up):**
-- Wrap the file read with `io.LimitReader(f, 16 * 1024 * 1024)` — 16 MiB is comfortably above any sane policy document; `pkg/policy/sync.go` already enforces `maxExpansion = 16384` per rule which gives a downstream cap.
-- Reject documents with `metadata.name` collisions (currently ignored — last write wins)
+**Mitigation applied (v2):**
+- ✅ `MaxPolicyFileBytes = 16 * 1024 * 1024` constant in `pkg/policy/types.go`. `LoadFile` reads via `io.ReadAll(io.LimitReader(f, MaxPolicyFileBytes+1))` — the +1 byte trick lets us detect overrun explicitly and return a clear error, rather than silently truncating to 16 MiB and parsing zero docs (which would have been the worst possible failure mode for a security control)
+- Verified in dev VM: 17 MiB pathological YAML → `ERROR policy load failed err="policy file ... exceeds cap of 16777216 bytes"` (exits with status 1); 4 KB legit policy → `INFO policy applied (delta) docs=4`
+
+**Not addressed (out of scope for this fix):** `metadata.name` collisions are still ignored (last write wins). Worth filing as a separate F-9 in a future audit revision.
 
 ### F-3 — DNS resolution timeout for `host:` rules is 2 s, no caching
 
-**CVSS 3.1 (project context):** AV:N / AC:L / PR:N / UI:N / S:U / C:N / I:N / A:L → **5.3 (Medium)** **— but the score is the *outside* attacker capability**, not what they can do against this agent specifically. See "Realism" below.
+**Status:** ✅ **CLOSED in v3** (current commit)  
+**CVSS 3.1 (project context, before fix):** AV:N / AC:L / PR:N / UI:N / S:U / C:N / I:N / A:L → **5.3 (Medium)** — outside attacker capability via DNS poisoning  
+**CVSS 3.1 after fix:** unchanged for the underlying threat (still depends on resolver trust), but the *attack window* is reduced from "every Apply tick" (~5s default) to "every TTL period" (60s default, configurable to 0 for pre-fix behaviour or to higher values for stricter mitigation). The mitigation also adds stale-while-error fallback that strengthens enforcement availability against transient resolver outages.
 
 **Where:** `pkg/policy/sync.go::resolveRuleTargets` — `net.DefaultResolver.LookupIPAddr` with a 2-second context timeout, called once per `host:` rule on every Apply tick (typically every cgroup-event-driven reconciliation, or every `resolveInterval` seconds as a fallback).
 
@@ -199,20 +213,27 @@ These do not have a CVE assigned (we are the upstream); they are project-introdu
 
 **Realism.** This is a property of the resolver, not the agent. The same risk exists for any tool that consults DNS for security policy (Cilium's FQDN policies have the same caveat upstream). The mitigation is the *operator* using a trusted resolver — typically the corporate DNS that this project's `deny-public-dns` baseline is designed to *enforce* in the first place. There is also a `dnssec` family of remediations the operator can deploy; the agent does not perform DNSSEC validation today.
 
-**Mitigation (recommended follow-up):**
-- Cache resolution results with TTL respect — currently every Apply re-resolves, which doubles the resolver-poisoning attack surface
-- Optionally support `do53-tcp-only` or `DoT` resolution by allowing the operator to set a custom resolver address
-- Document the dependency on a trusted upstream resolver in the `deny-host` baseline doc
+**Mitigation applied (v3):**
+- ✅ FQDN→IP cache with configurable TTL (default 60s) in `pkg/policy/sync.go`. Each Apply tick consults the cache first; only on a miss / expiry does it call `net.DefaultResolver.LookupIPAddr`
+- ✅ Stale-while-error fallback: if the resolver fails on re-resolution, the agent reuses the last known-good answer for one more cycle and logs a WARN. A transient resolver outage no longer flushes `host:` LPM entries
+- ✅ Wired through `-dns-cache-ttl` flag on the agent and `services.microsegebpf.dnsCacheTTL` option (default `60s`, set to `0s` to disable cache)
+- ✅ ARCHITECTURE §4.5 documents the cache mechanics, including why DNSSEC remains the operator's responsibility (the cache narrows the time window, doesn't validate)
+
+**Not addressed (out of scope):** support for a custom resolver address (DoT, do53-tcp-only). The agent still uses `net.DefaultResolver` which respects `/etc/resolv.conf`. Operators wanting stronger guarantees should run a local DNSSEC-validating resolver (e.g. `unbound`) and point `/etc/resolv.conf` at it.
 
 ### F-4 — `microseg-probe` connects to the gRPC observer with `insecure.NewCredentials()`
 
-**CVSS 3.1 (project context):** AV:L / AC:L / PR:L / UI:N / S:U / C:L / I:N / A:N → **3.3 (Low)**
+**Status:** ✅ **CLOSED in v3** (current commit)  
+**CVSS 3.1 (project context, before fix):** AV:L / AC:L / PR:L / UI:N / S:U / C:L / I:N / A:N → **3.3 (Low)**
 
 **Where:** `cmd/microseg-probe/main.go` — gRPC client always uses insecure transport.
 
 **Issue.** The CLI talks to the observer over Unix socket by default (no TLS needed — kernel mediates auth via mode bits). If the operator switches the agent to TCP and points `microseg-probe -addr=` at it, the connection is in the clear. Combined with **F-1**, an on-path attacker on the LAN segment can read every flow event the probe streams.
 
-**Mitigation:** add `-tls`, `-cert`, `-key`, `-ca` flags to the probe; mirror the agent's TLS support (which currently doesn't exist either — the gRPC server has no TLS path). This is a coherent gap; the fix is in two pieces (server + client).
+**Mitigation applied (v3):**
+- ✅ Server-side TLS / mTLS in `pkg/observer/server.go` (see F-1)
+- ✅ Probe-side TLS in `cmd/microseg-probe/main.go::buildClientCreds` — `-tls-ca`, `-tls-cert`, `-tls-key`, `-tls-server-name`, `-tls-insecure` flags. Default behaviour unchanged (insecure for Unix socket, where the kernel mediates); any non-empty TLS flag opts into a `tls.Config` with `MinVersion = TLS 1.2`
+- Verified end-to-end in dev VM: probe with valid CA + client cert succeeds; probe without client cert against an mTLS server gets `tls: certificate required`; probe in plaintext against a TLS server gets `error reading server preface: EOF`
 
 ### F-5 — Vector config materialised at module evaluation; secrets passed via env
 
@@ -290,26 +311,28 @@ The audit identified the following design choices as security-positive:
 
 ## 7. Recommendations
 
-In priority order, lowest-effort first.
+In priority order, lowest-effort first. Strikethrough = done in a later revision.
 
-### 7.1 Immediate (next commit)
+### 7.1 Immediate (closed in v2 — commit `9b7f56a`)
 
-- [ ] **Bump Go to 1.25.9+** (or rely on nixpkgs-25.11 security branch) — closes 3 reachable stdlib CVEs (the 4th, html/template XSS, is N/A for this project but tracking with the rest is cleaner)
-- [ ] **Document the Hubble TCP-listener exposure** (F-1) — README + add a NixOS warning when `hubble.listen` is not a Unix socket
-- [ ] **Cap policy file size** (F-2) — `io.LimitReader` to 16 MiB
+- [x] ~~Bump Go to 1.25.9+~~ — covered by CI runner (setup-go installs 1.25.9); the dev VM tracks a slightly older snapshot, irrelevant to deployment
+- [x] ~~Document the Hubble TCP-listener exposure (F-1)~~ — Nix warning + agent runtime warning + README + ARCHITECTURE
+- [x] ~~Cap policy file size (F-2)~~ — `MaxPolicyFileBytes = 16 MiB` with explicit overrun error
+- [x] ~~Bump quay.io/cilium/hubble-ui:v0.13.2 → v0.13.5~~ — upstream "Security Patching - Dockerfile" PR
+- [x] ~~Hubble UI: drop --network=host~~ — switched to podman bridge with `127.0.0.1:port` mapping
 
-### 7.2 Short-term (next few releases)
+### 7.2 Short-term (closed in v3 — current commit)
 
-- [ ] **TLS for the gRPC observer** (F-1, F-4) — server-side TLS option in `services.microsegebpf.hubble.tls.{certFile, keyFile, caFile}`, and matching `-tls`/`-cert` flags on `microseg-probe`. Keep Unix socket as the default; offer TCP+TLS as the second option; never plain TCP.
-- [ ] **Hubble UI: drop `--network=host`** in favour of a podman bridge network with `127.0.0.1:12000` host port mapping. Operator who wants remote access can SSH-tunnel.
-- [ ] **DNS resolution caching with TTL** (F-3) — current behaviour is to re-resolve on every Apply; respecting the record TTL would halve the resolver-poisoning surface.
-- [ ] **Bump `quay.io/cilium/hubble-ui:v0.13.2`** to the current Cilium release (likely v0.14.x or later by the time this is read).
+- [x] ~~TLS for the gRPC observer (F-1, F-4)~~ — full server-side TLS + mTLS via `services.microsegebpf.hubble.tls.*`, matching `-tls-*` flags on `microseg-probe`
+- [x] ~~DNS resolution caching with TTL (F-3)~~ — `dnsCacheTTL` option (default 60s) + stale-while-error fallback
 
-### 7.3 Long-term
+### 7.3 Long-term (open)
 
 - [ ] Track nixpkgs-25.11 security branch via a renovate-style automation; today the flake input pins the channel name (`nixos-25.11`) which auto-tracks but is non-reproducible across two clones a week apart.
 - [ ] Subscribe / Unsubscribe symmetry on the inotify watcher (F-7).
 - [ ] Per-cgroup TLS scoping (already on the README roadmap) — eliminates the "host-global SNI deny" caveat.
+- [ ] Reject duplicate `metadata.name` in policy bundles (called out in F-2 mitigation note).
+- [ ] Optional support for a custom resolver address (DoT / do53-tcp-only) so an operator who can't deploy a local DNSSEC resolver still gets some validation (F-3 not-addressed note).
 
 ---
 

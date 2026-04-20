@@ -313,6 +313,53 @@ the consumer's `for { select { ... } }` loop. Calling it inside the
 loop body would append a fresh subscriber on every iteration and
 leak channels indefinitely.
 
+### 4.5 FQDN resolution cache (security-relevant)
+
+`host:` rules go through `Syncer.resolveRuleTargets`, which calls
+`net.DefaultResolver.LookupIPAddr` with a 2-second context timeout.
+Without caching, every Apply tick re-issues the resolver query —
+doubling the resolver-poisoning attack surface (a malicious DNS
+response between two ticks flips the `/32` LPM entry to whatever
+IP the attacker chose).
+
+The syncer holds an in-process map keyed on the FQDN with a TTL
+honoured at lookup time:
+
+```go
+type dnsCacheEntry struct {
+    nets    []*net.IPNet
+    expires time.Time
+}
+```
+
+Defaults to TTL=60s (`-dns-cache-ttl=60s` flag on the agent,
+`services.microsegebpf.dnsCacheTTL` option). `0s` disables the
+cache entirely (debugging). Slot lifecycle:
+
+1. **Cache hit** (`time.Now().Before(e.expires)`) → return a copy of
+   `e.nets` to the caller. The IPNet pointers are immutable so we
+   share them; we copy the slice so the caller's `append` doesn't
+   mutate the cached entry.
+2. **Cache miss / expired** → resolve, store the result, return.
+3. **Resolver failure** → if a stale entry exists, log a WARN and
+   reuse it for one more cycle. Stale-while-error keeps a known-good
+   FQDN rule enforcing through a transient resolver outage; without
+   this fallback, a 30-second resolver hiccup would flush every
+   `host:` LPM entry from the maps.
+
+The cache lives in `Syncer` (one per agent) and is mutex-protected by
+the same `s.mu` that `Apply()` already holds for the whole
+reconciliation. No additional lock is needed; the read and write paths
+are inside the critical section. `SetDNSCacheTTL` wipes the cache so
+a TTL change takes effect immediately rather than waiting for the
+oldest stale entry to expire naturally.
+
+This does not replace DNSSEC. The agent still trusts the upstream
+resolver; the cache narrows the *time window* an attacker has to
+poison the answer. Operators who want stronger guarantees should
+combine this project with a local DNSSEC-validating resolver (e.g.
+`unbound`).
+
 ## 5. The Hubble observer
 
 `pkg/observer/server.go` implements three RPCs of the
@@ -355,6 +402,60 @@ When the publisher pushes a flow, it `select` with `default` on each
 subscriber's channel — slow consumers drop events without slowing the
 agent. Hubble UI itself behaves the same way; this is not a
 regression.
+
+### 5.2 Transport security: TLS / mTLS for the gRPC observer
+
+Default deployment uses `unix:/run/microseg/hubble.sock` with
+`RuntimeDirectoryMode = 0750` — only root on the workstation can
+connect. No TLS needed; the kernel mediates.
+
+When the operator switches to a TCP listener (`hubble.listen =
+"0.0.0.0:50051"`), the agent accepts an optional TLS configuration:
+
+```go
+type TLSConfig struct {
+    CertFile      string  // server cert (PEM)
+    KeyFile       string  // server key (PEM)
+    ClientCAFile  string  // CA bundle for verifying client certs (mTLS)
+    RequireClient bool    // require + verify a valid client cert
+}
+```
+
+The server-side knobs are wired through `-hubble-tls-cert`,
+`-hubble-tls-key`, `-hubble-tls-client-ca`, `-hubble-tls-require-client`
+flags on the agent (and the matching `services.microsegebpf.hubble.tls.*`
+options in the NixOS module). When `CertFile` + `KeyFile` are both set,
+`Server.Serve` wraps the listener with `grpc.Creds(credentials.NewTLS(...))`
+using TLS 1.2+ minimum. When `ClientCAFile` is also set:
+
+- `RequireClient = true` → `tls.RequireAndVerifyClientCert` (mTLS, hard)
+- `RequireClient = false` → `tls.VerifyClientCertIfGiven` (mTLS, optional)
+
+Two complementary warnings prevent silent cleartext exposure:
+- The NixOS module emits an evaluation-time warning when `hubble.listen`
+  is TCP and `hubble.tls.{certFile,keyFile}` is unset.
+- The agent emits a runtime slog WARN at startup with the same wording.
+  Even if the operator bypasses the module (`microseg-agent` invoked
+  directly from the CLI), the warning surfaces.
+
+The `microseg-probe` CLI mirrors the client side: `-tls-ca`,
+`-tls-cert`, `-tls-key`, `-tls-server-name`, `-tls-insecure`. The
+default ServerName is the host portion of `-addr`, which matches the
+typical SAN pattern. `buildClientCreds` enforces `MinVersion =
+TLS 1.2`; setting `-tls-insecure` prints a stderr warning.
+
+Both sides leave the system trust store as fallback (no `-tls-ca` →
+verify against `/etc/ssl/certs/`). The dual `-tls-ca` /
+`-tls-cert+-tls-key` combination supports any internal CA + mTLS
+setup with no additional config tooling.
+
+Tested matrix in the dev VM:
+
+| Probe config | Result |
+|---|---|
+| Valid CA + valid client cert + correct ServerName | ✅ ServerStatus + GetNodes + GetFlows |
+| Valid CA, no client cert | ❌ `tls: certificate required` (mTLS rejection) |
+| No TLS at all (plain TCP) | ❌ `error reading server preface: EOF` |
 
 ## 6. NixOS module
 

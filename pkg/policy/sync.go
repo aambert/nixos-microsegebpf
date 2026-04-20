@@ -43,10 +43,27 @@ type Syncer struct {
 	// been dropped without breaking the workstation. Defaults to true
 	// when constructed via NewSyncer; toggle via SetEnforce.
 	enforce bool
+	// FQDN→IP cache. Each Apply tick consults this before falling
+	// through to net.DefaultResolver.LookupIPAddr; cuts the
+	// resolver-poisoning attack surface from "every Apply" to "once
+	// per dnsCacheTTL". A TTL of 0 disables the cache entirely
+	// (re-resolve every Apply). See SECURITY-AUDIT.md §F-3.
+	dnsCacheTTL time.Duration
+	dnsCache    map[string]dnsCacheEntry
+}
+
+type dnsCacheEntry struct {
+	nets    []*net.IPNet
+	expires time.Time
 }
 
 func NewSyncer(maps Maps, log *slog.Logger) *Syncer {
-	return &Syncer{maps: maps, log: log, enforce: true}
+	return &Syncer{
+		maps:     maps,
+		log:      log,
+		enforce:  true,
+		dnsCache: map[string]dnsCacheEntry{},
+	}
 }
 
 // SetEnforce toggles enforcement of drop verdicts at policy
@@ -57,6 +74,18 @@ func (s *Syncer) SetEnforce(on bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.enforce = on
+}
+
+// SetDNSCacheTTL sets how long resolved FQDN→IP entries are kept
+// before re-resolution. Zero disables the cache. Call before Apply()
+// to take effect on the next reconciliation.
+func (s *Syncer) SetDNSCacheTTL(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dnsCacheTTL = d
+	// Wipe the cache so the new TTL takes effect immediately rather
+	// than on the next stale entry's expiry.
+	s.dnsCache = map[string]dnsCacheEntry{}
 }
 
 // Wire layout mirrors struct lpm_v4_key / lpm_v6_key in microseg.c.
@@ -114,11 +143,11 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 				"path", d.Spec.Selector.CgroupPath)
 		}
 		for _, cg := range matches {
-			ev4, ev6, err := expandRules(cg.ID, d.Spec.Egress, policyID, d.Metadata.Name, s.enforce)
+			ev4, ev6, err := s.expandRules(cg.ID, d.Spec.Egress, policyID, d.Metadata.Name, s.enforce)
 			if err != nil {
 				return err
 			}
-			iv4, iv6, err := expandRules(cg.ID, d.Spec.Ingress, policyID, d.Metadata.Name, s.enforce)
+			iv4, iv6, err := s.expandRules(cg.ID, d.Spec.Ingress, policyID, d.Metadata.Name, s.enforce)
 			if err != nil {
 				return err
 			}
@@ -386,7 +415,7 @@ func selectCgroups(sel Selector, cgs []identity.Cgroup) []identity.Cgroup {
 	return out
 }
 
-func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string, enforce bool) ([]entryV4, []entryV6, error) {
+func (s *Syncer) expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string, enforce bool) ([]entryV4, []entryV6, error) {
 	var v4 []entryV4
 	var v6 []entryV6
 
@@ -394,7 +423,7 @@ func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string, en
 		// Each rule yields one or more (CIDR, family) pairs. A `cidr`
 		// rule produces exactly one; a `host` rule produces one per
 		// resolved A/AAAA record.
-		nets, err := resolveRuleTargets(r)
+		nets, err := s.resolveRuleTargets(r)
 		if err != nil {
 			return nil, nil, fmt.Errorf("policy %q: %w", name, err)
 		}
@@ -500,7 +529,11 @@ func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string, en
 // as a /32 or /128). DNS lookup uses the system resolver with a 2-
 // second timeout so a slow / failing resolver doesn't stall the
 // agent's Apply loop.
-func resolveRuleTargets(r Rule) ([]*net.IPNet, error) {
+//
+// When dnsCacheTTL > 0 the result for a given host is cached for that
+// duration. Caller (Apply) holds s.mu for the whole reconciliation so
+// the cache reads/writes are race-free without an additional lock.
+func (s *Syncer) resolveRuleTargets(r Rule) ([]*net.IPNet, error) {
 	if r.CIDR != "" {
 		_, n, err := net.ParseCIDR(r.CIDR)
 		if err != nil {
@@ -512,10 +545,32 @@ func resolveRuleTargets(r Rule) ([]*net.IPNet, error) {
 		return nil, fmt.Errorf("rule has neither cidr nor host")
 	}
 
+	// Cache hit: return a copy of the slice so callers can append
+	// without mutating the cached entry. The IPNet pointers themselves
+	// are immutable so we share them.
+	if s.dnsCacheTTL > 0 {
+		if e, ok := s.dnsCache[r.Host]; ok && time.Now().Before(e.expires) {
+			out := make([]*net.IPNet, len(e.nets))
+			copy(out, e.nets)
+			return out, nil
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, r.Host)
 	if err != nil {
+		// Stale-while-error: if we have a cached entry (even expired)
+		// keep using it for one more cycle rather than dropping the
+		// rule entirely. Stops a transient resolver outage from
+		// breaking enforcement of a previously-known-good FQDN rule.
+		if e, ok := s.dnsCache[r.Host]; ok && len(e.nets) > 0 {
+			s.log.Warn("FQDN resolution failed, reusing stale cache",
+				"host", r.Host, "err", err, "stale_age", time.Since(e.expires))
+			out := make([]*net.IPNet, len(e.nets))
+			copy(out, e.nets)
+			return out, nil
+		}
 		return nil, fmt.Errorf("host %q: resolve: %w", r.Host, err)
 	}
 	out := make([]*net.IPNet, 0, len(addrs))
@@ -528,6 +583,18 @@ func resolveRuleTargets(r Rule) ([]*net.IPNet, error) {
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("host %q: resolved to no addresses", r.Host)
+	}
+
+	if s.dnsCacheTTL > 0 {
+		// Cache a separate slice so future cache returns and concurrent
+		// callers can each get an independent copy via the read path's
+		// `copy(out, e.nets)` (see top of this function).
+		stored := make([]*net.IPNet, len(out))
+		copy(stored, out)
+		s.dnsCache[r.Host] = dnsCacheEntry{
+			nets:    stored,
+			expires: time.Now().Add(s.dnsCacheTTL),
+		}
 	}
 	return out, nil
 }

@@ -989,6 +989,58 @@ $ microseg-probe -limit=10
   ...
 ```
 
+### Sécuriser l'observer gRPC avec TLS / mTLS
+
+Le listener par défaut (`unix:/run/microseg/hubble.sock`, mode
+0750 via `RuntimeDirectoryMode`) est restreint à root par le
+noyau — pas besoin d'authentification de transport. **Un
+listener TCP est une autre histoire :** chaque flow event que
+l'agent observe (5-tuples + SNI) est streamé à n'importe qui qui
+peut se connecter. Si tu as besoin de consommer les flux depuis
+l'extérieur du poste, câble TLS — et pour la prod, mTLS.
+
+```nix
+services.microsegebpf.hubble = {
+  listen = "0.0.0.0:50051";        # ou 127.0.0.1:50051 + tunnel SSH
+
+  tls = {
+    certFile          = "/etc/ssl/certs/microseg-server.pem";
+    keyFile           = "/etc/ssl/private/microseg-server.key";
+    clientCAFile      = "/etc/ssl/certs/microseg-clients-ca.pem";  # mTLS
+    requireClientCert = true;                                       # mTLS hard-on
+  };
+};
+```
+
+Sans `certFile` + `keyFile`, le module émet un warning au moment
+de l'évaluation nommant l'exposition cleartext (et l'agent émet
+une ligne slog WARN au démarrage, miroir du message Nix-time).
+Le CLI `microseg-probe` mirrore les mêmes options TLS
+(`-tls-ca`, `-tls-cert`, `-tls-key`, `-tls-server-name`,
+`-tls-insecure`) pour qu'un opérateur puisse vérifier
+end-to-end :
+
+```sh
+microseg-probe -addr=corp-host:50051 \
+  -tls-ca=/etc/ssl/certs/corp-ca.pem \
+  -tls-cert=/etc/ssl/certs/operator.pem \
+  -tls-key=/etc/ssl/private/operator.key \
+  -tls-server-name=corp-host \
+  -limit=10 -follow
+```
+
+### Cache de résolution FQDN
+
+Les règles `host:` re-résolvent le nom DNS à chaque tick Apply.
+Pour cap la fenêtre d'attaque resolver-poisoning — une réponse
+DNS malveillante flippe l'entrée LPM `/32` entre deux ticks
+Apply — l'agent cache les résultats pour
+`services.microsegebpf.dnsCacheTTL` (défaut `60s`). Une
+re-résolution échouée retombe sur la dernière réponse known-good
+pour qu'une panne résolveur transitoire ne drop pas une règle
+FQDN précédemment validée. Voir
+[SECURITY-AUDIT.md §F-3](SECURITY-AUDIT.md) pour le threat model.
+
 ## Build
 
 ### Workflow de développement

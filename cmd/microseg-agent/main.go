@@ -85,17 +85,22 @@ func (c *unitCache) lookup(cgid uint64) string {
 
 func main() {
 	var (
-		jsonLog       bool
-		emitAllow     bool
-		enforce       bool
-		defaultEgress string
-		defaultIngrs  string
-		policyPath    string
-		resolveEvery  time.Duration
-		hubbleAddr    string
-		hubbleBufSize int
-		tlsPortsRaw   string
-		blockQuic     bool
+		jsonLog          bool
+		emitAllow        bool
+		enforce          bool
+		defaultEgress    string
+		defaultIngrs     string
+		policyPath       string
+		resolveEvery     time.Duration
+		dnsCacheTTL      time.Duration
+		hubbleAddr       string
+		hubbleBufSize    int
+		hubbleTlsCert    string
+		hubbleTlsKey     string
+		hubbleTlsClientCA string
+		hubbleTlsRequireClient bool
+		tlsPortsRaw      string
+		blockQuic        bool
 	)
 	flag.BoolVar(&jsonLog, "json", true, "emit flow events as JSON on stdout")
 	flag.BoolVar(&emitAllow, "emit-allow", true, "emit ringbuf events even for ALLOW verdicts")
@@ -104,8 +109,13 @@ func main() {
 	flag.StringVar(&defaultIngrs, "default-ingress", "allow", "default verdict for ingress without policy match: allow|drop")
 	flag.StringVar(&policyPath, "policy", "", "path to a YAML policy file (omit to disable policy)")
 	flag.DurationVar(&resolveEvery, "resolve-every", 5*time.Second, "how often to re-resolve selectors against the cgroup tree")
+	flag.DurationVar(&dnsCacheTTL, "dns-cache-ttl", 60*time.Second, "how long to cache FQDN→IP resolution for `host:` rules (0 = no cache, re-resolve on every Apply)")
 	flag.StringVar(&hubbleAddr, "hubble-addr", "unix:/run/microseg/hubble.sock", "Hubble observer gRPC listen address (host:port or unix:/path)")
 	flag.IntVar(&hubbleBufSize, "hubble-buffer", 4096, "number of recent flows kept in the observer ring buffer")
+	flag.StringVar(&hubbleTlsCert, "hubble-tls-cert", "", "path to server TLS certificate (PEM) for the gRPC observer; required for any TCP listener that escapes loopback")
+	flag.StringVar(&hubbleTlsKey, "hubble-tls-key", "", "path to server TLS private key (PEM) — must pair with -hubble-tls-cert")
+	flag.StringVar(&hubbleTlsClientCA, "hubble-tls-client-ca", "", "path to CA bundle for verifying client certificates (mTLS) — empty = no client cert check")
+	flag.BoolVar(&hubbleTlsRequireClient, "hubble-tls-require-client", false, "require + verify a valid client certificate (mTLS); ignored unless -hubble-tls-client-ca is also set")
 	flag.StringVar(&tlsPortsRaw, "tls-ports", "443,8443", "comma-separated destination ports treated as TLS-bearing for SNI/ALPN peeking and QUIC blocking (max 8)")
 	flag.BoolVar(&blockQuic, "block-quic", false, "drop UDP egress to any -tls-ports — forces QUIC clients to fall back to TCP/TLS where SNI matching works")
 	flag.Parse()
@@ -184,6 +194,7 @@ func main() {
 			TlsAlpnDeny: l.TlsAlpnDenyMap(),
 		}, log)
 		syncer.SetEnforce(enforce)
+		syncer.SetDNSCacheTTL(dnsCacheTTL)
 		if err := syncer.Apply(docs); err != nil {
 			log.Error("initial policy apply failed", "err", err)
 			os.Exit(1)
@@ -223,12 +234,26 @@ func main() {
 	if err := os.MkdirAll("/run/microseg", 0o755); err != nil && !os.IsExist(err) {
 		log.Warn("mkdir /run/microseg", "err", err)
 	}
+	hubbleTls := observer.TLSConfig{
+		CertFile:      hubbleTlsCert,
+		KeyFile:       hubbleTlsKey,
+		ClientCAFile:  hubbleTlsClientCA,
+		RequireClient: hubbleTlsRequireClient,
+	}
+	// Loud warning at startup when a TCP listener has no TLS configured
+	// — mirrors the NixOS evaluation-time warning. Unix socket falls
+	// through (kernel mediates access via mode bits).
+	if !strings.HasPrefix(hubbleAddr, "unix:") && hubbleTlsCert == "" {
+		log.Warn("hubble observer on TCP without TLS — every flow event is broadcast in cleartext to anyone who can connect",
+			"addr", hubbleAddr,
+			"hint", "set -hubble-tls-cert and -hubble-tls-key, ideally with -hubble-tls-client-ca + -hubble-tls-require-client for mTLS")
+	}
 	go func() {
-		if err := srv.Serve(obsCtx, hubbleAddr); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := srv.Serve(obsCtx, hubbleAddr, hubbleTls); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Error("hubble server failed", "err", err)
 		}
 	}()
-	log.Info("hubble observer listening", "addr", hubbleAddr)
+	log.Info("hubble observer listening", "addr", hubbleAddr, "tls", hubbleTlsCert != "", "mtls", hubbleTlsRequireClient)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

@@ -148,11 +148,34 @@ in
       description = "How often to re-walk the cgroup tree and re-resolve selectors.";
     };
 
+    dnsCacheTTL = mkOption {
+      type = types.str;
+      default = "60s";
+      description = ''
+        How long to cache FQDN→IP resolution for `host:` rules.
+        Each Apply tick consults the cache before falling through
+        to the system resolver, so a value of 60s caps the
+        resolver-poisoning attack window without sacrificing
+        responsiveness to legitimate IP rotation. Set to `"0s"`
+        to disable the cache (re-resolve on every Apply — useful
+        for debugging, not for production). See
+        SECURITY-AUDIT.md §F-3.
+      '';
+    };
+
     hubble = {
       listen = mkOption {
         type = types.str;
         default = "unix:/run/microseg/hubble.sock";
-        description = "gRPC listen address for the Hubble observer (host:port or unix:/path).";
+        description = ''
+          gRPC listen address for the Hubble observer
+          (`host:port` or `unix:/path`). The default Unix socket
+          is restricted to root via `RuntimeDirectoryMode = 0750`
+          and needs no transport authentication. A TCP listener
+          MUST be paired with `hubble.tls.{certFile,keyFile}` —
+          the module emits an evaluation-time warning otherwise.
+          See SECURITY-AUDIT.md §F-1.
+        '';
       };
 
       bufferSize = mkOption {
@@ -161,12 +184,56 @@ in
         description = "Number of recent flow events kept in the observer ring buffer.";
       };
 
+      tls = {
+        certFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Path to the PEM server certificate used by the Hubble
+            gRPC observer when `listen` is a TCP address. Pair
+            with `keyFile`. Leave null to keep the listener
+            cleartext (only sensible for the Unix-socket default).
+          '';
+        };
+        keyFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            Path to the PEM private key matching `certFile`. Read
+            once at agent startup; the agent process needs read
+            access (typically /etc/ssl/private mode 0640 with the
+            agent's group).
+          '';
+        };
+        clientCAFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            CA bundle used to verify mTLS client certificates.
+            Setting this enables mTLS; combine with
+            `requireClientCert = true` to reject any connection
+            not presenting a valid client cert.
+          '';
+        };
+        requireClientCert = mkOption {
+          type = types.bool;
+          default = false;
+          description = ''
+            When true, the gRPC observer rejects any client that
+            does not present a valid certificate signed by
+            `clientCAFile`. When false but `clientCAFile` is set,
+            client certs are verified if presented but optional.
+            Ignored entirely when `clientCAFile` is null.
+          '';
+        };
+      };
+
       ui = {
         enable = mkEnableOption "co-located hubble-ui pointed at the local microseg observer";
         port = mkOption {
           type = types.port;
           default = 12000;
-          description = "Local port for the hubble-ui frontend.";
+          description = "Local port for the hubble-ui frontend (bound to 127.0.0.1; use `ssh -L` for remote access).";
         };
       };
     };
@@ -470,7 +537,15 @@ in
           (lib.optionalString (cfg.policies != [ ]) "-policy=${policyFile}")
           "-hubble-addr=${cfg.hubble.listen}"
           "-hubble-buffer=${toString cfg.hubble.bufferSize}"
+          (lib.optionalString (cfg.hubble.tls.certFile != null)
+            "-hubble-tls-cert=${toString cfg.hubble.tls.certFile}")
+          (lib.optionalString (cfg.hubble.tls.keyFile != null)
+            "-hubble-tls-key=${toString cfg.hubble.tls.keyFile}")
+          (lib.optionalString (cfg.hubble.tls.clientCAFile != null)
+            "-hubble-tls-client-ca=${toString cfg.hubble.tls.clientCAFile}")
+          "-hubble-tls-require-client=${lib.boolToString cfg.hubble.tls.requireClientCert}"
           "-resolve-every=${cfg.resolveInterval}"
+          "-dns-cache-ttl=${cfg.dnsCacheTTL}"
           "-tls-ports=${lib.concatStringsSep "," (map toString cfg.tlsPorts)}"
         ];
         Restart = "on-failure";
@@ -516,15 +591,17 @@ in
         "services.microsegebpf.enforce = false: every drop verdict is demoted to log; the eBPF datapath will emit a flow event but NOT return SK_DROP. Use this for the bake-in phase only and flip enforce=true to actually contain compromised workloads."
       ++ lib.optional (cfg.logs.syslog.enable && cfg.logs.syslog.mode != "tcp+tls")
         "services.microsegebpf.logs.syslog.mode = \"${cfg.logs.syslog.mode}\": flow events and control-plane logs travel UNENCRYPTED to ${cfg.logs.syslog.endpoint}. Use \"tcp+tls\" (RFC 5425, default port 6514) unless you really need legacy compat."
-      # Hubble gRPC observer has no built-in transport authentication.
-      # On a Unix socket (default) the kernel mediates access via mode
-      # bits + RuntimeDirectoryMode; on a TCP listener anybody who can
-      # route to the host:port streams every flow event the agent
-      # observes — including SNI hostnames the user reaches. Force the
-      # operator to acknowledge the trade-off in the rebuild log.
+      # Hubble gRPC observer on a TCP listener without TLS broadcasts
+      # every flow event in cleartext to anyone who can connect. The
+      # default Unix socket is fine (kernel mediates access via mode
+      # bits + RuntimeDirectoryMode = 0750). When the operator opts
+      # into TCP, require either TLS or an explicit acknowledgement
+      # in the form of the warning showing up in the rebuild log.
       # See SECURITY-AUDIT.md §F-1.
-      ++ lib.optional (!lib.hasPrefix "unix:" cfg.hubble.listen)
-        "services.microsegebpf.hubble.listen = \"${cfg.hubble.listen}\": the gRPC observer has no transport authentication. A TCP listener exposes every flow event (5-tuples + SNI) to anyone who can connect. Keep the default (unix:/run/microseg/hubble.sock) unless you have a host firewall and an authenticated reverse proxy in front, or accept the operational risk explicitly."
+      ++ lib.optional
+        (!lib.hasPrefix "unix:" cfg.hubble.listen
+         && (cfg.hubble.tls.certFile == null || cfg.hubble.tls.keyFile == null))
+        "services.microsegebpf.hubble.listen = \"${cfg.hubble.listen}\": TCP listener configured without TLS — every flow event (5-tuples + SNI) is broadcast in cleartext to anyone who can connect. Set hubble.tls.certFile + hubble.tls.keyFile (and ideally hubble.tls.clientCAFile + hubble.tls.requireClientCert for mTLS), or revert to the default unix:/run/microseg/hubble.sock."
       # hubble-ui in --network=host mode (the previous default) bound
       # the dashboard to every interface of the workstation. We've
       # since switched to a podman bridge with 127.0.0.1 host binding;

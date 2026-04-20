@@ -942,6 +942,55 @@ $ microseg-probe -limit=10
   ...
 ```
 
+### Securing the gRPC observer with TLS / mTLS
+
+The default listener (`unix:/run/microseg/hubble.sock`, mode 0750
+via `RuntimeDirectoryMode`) is restricted to root by the kernel —
+no transport authentication needed. **A TCP listener is a different
+story:** every flow event the agent observes (5-tuples + SNI) gets
+streamed to anyone who can connect. If you need to consume flows
+from outside the workstation, wire TLS — and for production, mTLS.
+
+```nix
+services.microsegebpf.hubble = {
+  listen = "0.0.0.0:50051";        # or 127.0.0.1:50051 + SSH tunnel
+
+  tls = {
+    certFile          = "/etc/ssl/certs/microseg-server.pem";
+    keyFile           = "/etc/ssl/private/microseg-server.key";
+    clientCAFile      = "/etc/ssl/certs/microseg-clients-ca.pem";  # mTLS
+    requireClientCert = true;                                       # mTLS hard-on
+  };
+};
+```
+
+Without `certFile` + `keyFile` set, the module emits an
+evaluation-time warning naming the cleartext exposure (and the
+agent emits a runtime WARN slog line at startup, mirroring the
+Nix-time message). The `microseg-probe` CLI mirrors the same TLS
+options (`-tls-ca`, `-tls-cert`, `-tls-key`, `-tls-server-name`,
+`-tls-insecure`) so an operator can verify end-to-end:
+
+```sh
+microseg-probe -addr=corp-host:50051 \
+  -tls-ca=/etc/ssl/certs/corp-ca.pem \
+  -tls-cert=/etc/ssl/certs/operator.pem \
+  -tls-key=/etc/ssl/private/operator.key \
+  -tls-server-name=corp-host \
+  -limit=10 -follow
+```
+
+### FQDN resolution caching
+
+`host:` rules re-resolve the DNS name on every Apply tick. To cap
+the resolver-poisoning attack window — a malicious DNS response
+flips the `/32` LPM entry between Apply ticks — the agent caches
+results for `services.microsegebpf.dnsCacheTTL` (default `60s`).
+A failed re-resolution falls back to the last known-good answer
+so a transient resolver outage doesn't drop a previously-validated
+FQDN rule. See [SECURITY-AUDIT.md §F-3](SECURITY-AUDIT.md) for the
+threat model.
+
 ## Build
 
 ### Development workflow
