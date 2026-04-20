@@ -37,10 +37,26 @@ type Syncer struct {
 	maps Maps
 	log  *slog.Logger
 	mu   sync.Mutex
+	// enforce=false demotes every action="drop" rule to action="log"
+	// at expansion time. The eBPF program then emits a flow event but
+	// returns SK_PASS, so the operator can observe what *would* have
+	// been dropped without breaking the workstation. Defaults to true
+	// when constructed via NewSyncer; toggle via SetEnforce.
+	enforce bool
 }
 
 func NewSyncer(maps Maps, log *slog.Logger) *Syncer {
-	return &Syncer{maps: maps, log: log}
+	return &Syncer{maps: maps, log: log, enforce: true}
+}
+
+// SetEnforce toggles enforcement of drop verdicts at policy
+// expansion time. Call before Apply() to take effect on the next
+// reconciliation. Safe to call concurrently — guarded by the same
+// mutex Apply uses.
+func (s *Syncer) SetEnforce(on bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.enforce = on
 }
 
 // Wire layout mirrors struct lpm_v4_key / lpm_v6_key in microseg.c.
@@ -98,11 +114,11 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 				"path", d.Spec.Selector.CgroupPath)
 		}
 		for _, cg := range matches {
-			ev4, ev6, err := expandRules(cg.ID, d.Spec.Egress, policyID, d.Metadata.Name)
+			ev4, ev6, err := expandRules(cg.ID, d.Spec.Egress, policyID, d.Metadata.Name, s.enforce)
 			if err != nil {
 				return err
 			}
-			iv4, iv6, err := expandRules(cg.ID, d.Spec.Ingress, policyID, d.Metadata.Name)
+			iv4, iv6, err := expandRules(cg.ID, d.Spec.Ingress, policyID, d.Metadata.Name, s.enforce)
 			if err != nil {
 				return err
 			}
@@ -370,7 +386,7 @@ func selectCgroups(sel Selector, cgs []identity.Cgroup) []identity.Cgroup {
 	return out
 }
 
-func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string) ([]entryV4, []entryV6, error) {
+func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string, enforce bool) ([]entryV4, []entryV6, error) {
 	var v4 []entryV4
 	var v6 []entryV6
 
@@ -410,7 +426,17 @@ func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string) ([
 				return nil, nil, fmt.Errorf("policy %q: rule expands to %d entries (limit %d)", name, count, maxExpansion)
 			}
 
-			val := rawValue{Verdict: VerdictCode(r.Action), PolicyID: policyID}
+			// enforce=false demotes drops to logs at expansion time so
+			// the kernel datapath never returns SK_DROP. The flow event
+			// is still emitted with the matched policy id, so Hubble
+			// (and the OpenSearch log shipper) can show what *would*
+			// have been dropped — useful during the bake-in phase
+			// before flipping enforcement on.
+			action := r.Action
+			if !enforce && action == "drop" {
+				action = "log"
+			}
+			val := rawValue{Verdict: VerdictCode(action), PolicyID: policyID}
 
 			switch bits {
 			case 32:

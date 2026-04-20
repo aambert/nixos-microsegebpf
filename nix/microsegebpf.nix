@@ -52,12 +52,23 @@ in
       type = types.bool;
       default = false;
       description = ''
-        When false (default), the agent emits flow events but never
-        drops packets, regardless of policy verdicts. Useful for a
-        bake-in period before flipping enforcement on.
+        When false (default), every action="drop" rule in the
+        loaded policies is demoted to action="log" at the agent's
+        policy-expansion stage. The eBPF datapath still emits a
+        flow event for every match (visible in Hubble UI and the
+        OpenSearch log shipper if enabled), but never returns
+        SK_DROP — useful for a bake-in period where you want to
+        watch what *would* have been dropped without actually
+        breaking the workstation.
 
-        When true, drop verdicts in the loaded policies are enforced by
-        the kernel datapath.
+        When true, drop verdicts are enforced by the kernel
+        datapath: the agent passes them through as-is and the
+        cgroup_skb program returns SK_DROP on a match.
+
+        Wired through the `-enforce=true|false` flag on the
+        agent — change this option, restart the unit, and the
+        next Apply tick repopulates the BPF maps with the
+        translated verdicts.
       '';
     };
 
@@ -268,6 +279,7 @@ in
         Type = "simple";
         ExecStart = lib.concatStringsSep " " [
           "${cfg.package}/bin/microseg-agent"
+          "-enforce=${lib.boolToString cfg.enforce}"
           "-default-egress=${cfg.defaultEgress}"
           "-default-ingress=${cfg.defaultIngress}"
           (lib.optionalString cfg.emitAllowEvents "-emit-allow=true")
@@ -305,12 +317,14 @@ in
       };
     };
 
-    # When enforce=false, override the agent's default flag wiring so it
-    # ignores drop verdicts from the policy. Done in the agent rather
-    # than here would be cleaner; keep this option-shaped until the
-    # agent gains a `-enforce=` flag.
+    # When enforce=false the agent demotes every action="drop" rule
+    # to action="log" at policy expansion time, so the kernel still
+    # emits flow events but never returns SK_DROP. The warning is a
+    # belt-and-suspenders reminder that bake-in mode does not
+    # actually contain anything — flip enforce=true once you have
+    # observed the flow surface for a few weeks.
     warnings = lib.optional (!cfg.enforce && cfg.policies != [ ])
-      "services.microsegebpf.enforce = false: drop verdicts in your policies will NOT be applied to the kernel datapath. Flip enforce to true once you have observed flows in Hubble for a few weeks.";
+      "services.microsegebpf.enforce = false: every drop verdict is demoted to log; the eBPF datapath will emit a flow event but NOT return SK_DROP. Use this for the bake-in phase only and flip enforce=true to actually contain compromised workloads.";
 
     # Optional: bring up hubble-ui as a local container/service pointed
     # at our gRPC observer. Upstream ships an OCI image that's easy to

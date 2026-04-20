@@ -1026,13 +1026,14 @@ cmd/microseg-agent/         Point d'entrée du daemon
 cmd/microseg-probe/         Client Hubble CLI pour inspection sans interface
 nix/microsegebpf.nix        Module NixOS (services.microsegebpf)
 nix/package.nix             Dérivation buildGoModule avec vendorHash et preBuild BPF
-nix/policies/               Bibliothèque composable de policies (mkPolicy + 7 baselines)
-nix/tests/vm-test.nix       nixosTest exerçant le verdict drop dans le noyau + wildcards SNI
+nix/policies/               Bibliothèque composable de policies (mkPolicy + 8 baselines : deny-public-dns, sshd-restrict, deny-rfc1918-from-user-session, smtp-relay-only, deny-threat-feed, deny-host, deny-sni, deny-alpn)
+nix/tests/vm-test.nix       nixosTest : verdict drop dans le noyau (L3/L4 + FQDN), SNI exact + wildcard (v4 + v6)
 flake.nix                   Outputs de flake (packages, nixosModules, lib, checks)
 default.nix, shell.nix      Points d'entrée hors flake
 .github/workflows/          GitHub Actions : nix-build (rapide), vm-test (lent)
 examples/policy.yaml        Bundle d'exemple de policies en YAML brut
 examples/tls-policy.yaml    Exemple de policy TLS-aware (sniDeny/alpnDeny)
+examples/fqdn-policy.yaml   Exemple de policy FQDN par hostname (host: example.com)
 examples/deployment/        Flake consommateur d'exemple (la cible GitOps)
 LICENSES/                   Textes de licence SPDX (MIT, CC-BY-SA-4.0)
 REUSE.toml                  Annotations REUSE-spec pour fichiers sans header SPDX inline

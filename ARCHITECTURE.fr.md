@@ -213,12 +213,29 @@ Le pipeline est `pkg/policy/sync.go::Apply()` :
    `maxExpansion = 16384` entrées — sinon une erreur du type « bloquer
    0.0.0.0/0 ports 1-65535 » exploserait la map.
 
-4. **Push vers les maps BPF.** La `lpm_v?_key` de chaque entrée est
-   construite avec le `prefix_len` correct, puis
-   `Map.Update(&key, &val, UpdateAny)` l'insère. On fait un cycle
-   complet flush-puis-fill à chaque Apply plutôt qu'un update delta —
-   à l'échelle d'un poste (quelques milliers d'entrées au total) c'est
-   rapide et trivialement correct.
+4. **Push vers les maps BPF par réconciliation delta.** La
+   `lpm_v?_key` de chaque entrée est construite avec le
+   `prefix_len` correct. Le syncer fait alors tourner un
+   réconciliateur générique `applyDelta[K comparable]` sur chacune
+   des six maps (`egress_v4`, `ingress_v4`, `egress_v6`,
+   `ingress_v6`, `tls_sni_lpm`, `tls_alpn_deny`) :
+
+   1. Snapshot du contenu actuel de la map dans une map Go.
+   2. Pour chaque entrée désirée dont la valeur diffère (ou est
+      absente), un `Map.Update(&key, &val, UpdateAny)` — atomique
+      au niveau noyau (RCU). Les entrées avec valeur identique ne
+      sont pas touchées du tout.
+   3. Une fois tous les ajouts/updates posés, on supprime les clés
+      qui étaient dans la map mais absentes du nouveau set désiré.
+
+   Cet ordre adds-en-premier, deletes-en-dernier est la **garantie
+   sans coupure** : il n'y a aucune fenêtre transitoire pendant
+   laquelle un flux qui matche à la fois l'ancienne et la nouvelle
+   policy verrait une entrée manquante. En régime stable (pas de
+   changement de policy entre deux ticks) le réconciliateur ne
+   fait zéro syscall par map. L'ancien pattern flush-puis-fill a
+   disparu — voir `pkg/policy/sync.go::applyDelta` pour
+   l'implémentation.
 
 ### 4.1 La sentinelle « any port »
 
@@ -436,11 +453,6 @@ du PoC.
 - **Fragments IPv6 / fragments IPv4 après le premier.** Le premier
   fragment porte l'en-tête L4 et est filtré ; les suivants sont
   forwardés. Le trafic poste ne fragmente quasi jamais ici.
-- **Updates de map en delta.** Chaque `Apply()` fait un flush-and-fill
-  complet des tries LPM. À l'échelle d'un poste c'est des
-  microsecondes ; faire de vrais deltas ajouterait ~300 lignes de
-  bookkeeping pour aucun bénéfice observable sur cette classe de
-  hardware.
 
 ## 9. Peek TLS : matching SNI + ALPN
 
@@ -655,7 +667,146 @@ déterministe et plus autoritaire ; on ne veut pas qu'un check TLS
 ressuscite un verdict drop. Inversement, un allow IP-niveau peut
 être vétoé par TLS — c'est tout l'intérêt de l'augmentation.
 
-## 10. Où regarder en premier quand quelque chose casse
+## 10. Intégration opérationnelle : centralisation des logs vers OpenSearch
+
+Un poste qui drop un flux à 03:14 ne devrait pas obliger un
+analyste à se SSH dessus pour grepper journald. Le bloc optionnel
+`services.microsegebpf.logs.opensearch.*` centralise chaque flow
+event et chaque log control-plane vers un cluster OpenSearch
+parc-large, là où le SOC a déjà rétention et alerting câblés.
+
+### 10.1 Pourquoi un process séparé, pas l'agent
+
+L'agent est sur le datapath eBPF : tout client HTTP, stack TLS
+ou retry-loop supplémentaire dans son adresse augmente son blast
+radius et la probabilité qu'une panne du pipeline de logs fasse
+tomber l'enforcement avec elle. Donc l'agent reste étroit :
+
+- écrit du JSON structuré sur **stdout** (une ligne par flow
+  event, le stream haut volume)
+- écrit des records slog control-plane sur **stderr** (bas
+  volume, lisible humain)
+- n'ouvre jamais de connexion réseau sortante de son côté
+
+La capture stream de systemd pour les unités `Type=simple`
+envoie les deux file descriptors dans journald avec
+`_SYSTEMD_UNIT=microsegebpf-agent.service`, où n'importe quel
+sidecar peut les ramasser.
+
+### 10.2 L'unité shipper
+
+`services.microsegebpf.logs.opensearch.enable = true` ajoute une
+seconde unité systemd, `microsegebpf-log-shipper.service`, qui
+fait tourner [Vector](https://vector.dev) sous
+`DynamicUser=true`. La config Vector est générée par Nix sous
+forme de fichier JSON dans le store — reviewable comme partie de
+n'importe quel diff de closure, byte-identique entre deux évals
+du même input.
+
+Pipeline (quatre nœuds) :
+
+```
+journald  ─┐
+           ├─►  remap (parse_json + merge)  ─┬─►  filter exists(.verdict)  ─►  ES sink: indexFlows
+                                              └─►  filter !exists(.verdict) ─►  ES sink: indexAgent
+```
+
+- **Source `microseg_journal`** — source `journald` restreinte à
+  `include_units = [ "microsegebpf-agent.service" ]`,
+  `current_boot_only = true`. On ne ship jamais quelque chose
+  qu'on ne devrait pas.
+- **Transform `microseg_parse`** — `remap` VRL qui fait
+  `parse_json(.message)` et merge l'objet parsé dans la racine
+  de l'event. Les lignes non-JSON (rares ; uniquement si l'agent
+  panic avant init slog) passent inchangées. Le guard
+  `is_object` + cast `object!()` garde le strict assignment
+  checker VRL content sans fallback runtime.
+- **Filtres `microseg_filter_flows` / `microseg_filter_agent`** —
+  deux transforms `filter` qui splittent sur `exists(.verdict)`.
+  Deux filtres au lieu d'un `route` parce que `route` expose
+  toujours un output `_unmatched` que Vector warn quand aucun
+  consumer n'est wiré.
+- **Sinks `opensearch_flows` / `opensearch_agent`** — deux sinks
+  `elasticsearch` (le wire format OpenSearch est compatible
+  Elasticsearch) qui écrivent dans les indices strftime-templatés
+  configurés en mode bulk.
+
+### 10.3 Gestion auth + TLS
+
+Le mot de passe OpenSearch n'apparaît jamais sur la ligne de
+commande ou dans le fichier d'environnement de l'unité. Le
+`LoadCredential = "os_password:${cfg.logs.opensearch.auth.passwordFile}"`
+de systemd place le fichier dans `$CREDENTIALS_DIRECTORY`, un
+hook `ExecStartPre` l'exporte comme `MICROSEG_OS_PASSWORD`, et
+la substitution `${MICROSEG_OS_PASSWORD}` de Vector le wire
+dans la config auth du sink uniquement au moment du démarrage.
+
+Le pinning CA via `tls.caFile` est par-sink (donc le même
+fichier est splice'é dans `opensearch_flows` ET
+`opensearch_agent`). Poser `tls.verifyCertificate = false` est
+permis mais Vector émet un WARN bruyant au démarrage —
+approprié en lab, jamais en prod.
+
+### 10.4 Durcissement du shipper
+
+L'unité shipper a besoin d'egress réseau vers OpenSearch et
+d'accès lecture journald. Rien d'autre, donc on drop le reste :
+
+| Knob | Valeur | Pourquoi |
+|---|---|---|
+| `DynamicUser` | `true` | Pas d'UID persistant ; systemd en alloue un par boot |
+| `StateDirectory` | `vector` | Vector exige un `data_dir` pour les checkpoints de buffer ; `StateDirectory` le rend compatible avec `DynamicUser` (auto bind-mount de `/var/lib/private/vector` → `/var/lib/vector`) |
+| `SupplementaryGroups` | `[ "systemd-journal" ]` | Accès lecture à `/var/log/journal/*` |
+| `ProtectSystem` | `strict` | `/usr`, `/etc`, `/boot` en lecture seule |
+| `RestrictAddressFamilies` | `[ AF_INET AF_INET6 AF_UNIX ]` | Bloque sockets raw, netlink, packet sockets |
+| `SystemCallFilter` | `[ @system-service @network-io ]` | Uniquement les syscalls dont un client réseau a besoin |
+| `LockPersonality` | `true` | Pas de tricks personality(2) |
+| `MemoryDenyWriteExecute` | `false` | Vector JIT-alloue des regex engines etc. ; ne peut pas être true |
+| `NoNewPrivileges` | `true` | L'unité ne peut pas escalader via setuid binaries |
+
+### 10.5 Garanties de découplage
+
+Trois modes de panne contre lesquels le design défend :
+
+1. **Cluster OpenSearch down.** Vector retry avec backoff
+   exponentiel. L'agent et son datapath eBPF continuent
+   d'enforcer — ils ignorent OpenSearch.
+2. **Crash de l'unité shipper.** journald continue de buffer
+   tout ce que l'agent écrit (selon son budget de rétention).
+   Au redémarrage du shipper, le curseur journal (persisté dans
+   `/var/lib/vector/`) dit à Vector où reprendre. Pas de perte
+   d'event tant que journald n'a pas roté au-delà du curseur.
+3. **Coquille de config Vector au déploiement.** `nix flake
+   check` attrape les erreurs d'eval ; le `vector validate`
+   runtime attrape les erreurs VRL/sink avant que l'unité
+   passe active. Une mauvaise config laisse tourner le shipper
+   de la génération *précédente* jusqu'à ce que
+   `nixos-rebuild switch` réussisse (activation atomique
+   NixOS).
+
+Il n'y a aucun chemin où une panne du pipeline de logs fait
+tomber l'enforcement.
+
+### 10.6 Et la Hubble UI dans tout ça ?
+
+La Hubble UI et le shipper OpenSearch servent des audiences et
+des échelles de temps différentes :
+
+| | Hubble UI | Shipper OpenSearch |
+|---|---|---|
+| Audience | Opérateur local, interactif | SOC parc-large, batché |
+| Latence | Tail live (sub-seconde) | POST bulk, ~1-5 s |
+| Rétention | Ring buffer mémoire (`hubble.bufferSize`, défaut 4096 events) | Index lifecycle policy dans OpenSearch (semaines à mois) |
+| Cardinalité | Un poste | Tout le parc |
+| Wire format | gRPC `cilium.observer.Observer` | HTTP/JSON `_bulk` |
+
+Les deux sont optionnels, les deux peuvent tourner ensemble, et
+ils lisent depuis des sources différentes (Hubble depuis le
+serveur gRPC de l'agent directement ; le shipper depuis
+journald). Activer les deux est le setup prod recommandé : les
+opérateurs ont l'UI live, le SOC a la recherche historique.
+
+## 11. Où regarder en premier quand quelque chose casse
 
 | Symptôme | Cause probable | Où regarder |
 |---|---|---|
@@ -669,7 +820,7 @@ ressuscite un verdict drop. Inversement, un allow IP-niveau peut
 | GitHub Actions warne `Node.js 20 is deprecated` | Les versions d'action pinnées embarquent encore un runtime Node 20. Soit bumper (`actions/checkout@v6`, `cachix/install-nix-action@v31.10.4`, `cachix/cachix-action@v17`, `actions/setup-go@v6`), soit poser `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` dans le bloc `env:` du workflow. | `.github/workflows/*.yml` |
 | vm-test échoue avec `target.fail(...) unexpectedly succeeded` sur une assertion alice-as-user | `su -l alice` dans `target.execute()` n'a pas de TTY de contrôle, donc PAM n'invoque pas pam_systemd et le curl tourne dans `/system.slice/backdoor.service` au lieu de `/user.slice/...`. Utiliser une unité systemd dédiée `User=alice` `Type=oneshot` et sélectionner sur `systemdUnit = ...`. | `nix/tests/vm-test.nix` |
 
-## 11. Contribuer
+## 12. Contribuer
 
 Patches bienvenues. Deux règles de la maison :
 

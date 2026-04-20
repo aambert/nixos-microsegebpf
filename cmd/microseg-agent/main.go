@@ -87,6 +87,7 @@ func main() {
 	var (
 		jsonLog       bool
 		emitAllow     bool
+		enforce       bool
 		defaultEgress string
 		defaultIngrs  string
 		policyPath    string
@@ -98,6 +99,7 @@ func main() {
 	)
 	flag.BoolVar(&jsonLog, "json", true, "emit flow events as JSON on stdout")
 	flag.BoolVar(&emitAllow, "emit-allow", true, "emit ringbuf events even for ALLOW verdicts")
+	flag.BoolVar(&enforce, "enforce", true, "honour drop verdicts in the loaded policies (false demotes every drop to log so the kernel still emits flow events but never returns SK_DROP — bake-in mode)")
 	flag.StringVar(&defaultEgress, "default-egress", "allow", "default verdict for egress without policy match: allow|drop")
 	flag.StringVar(&defaultIngrs, "default-ingress", "allow", "default verdict for ingress without policy match: allow|drop")
 	flag.StringVar(&policyPath, "policy", "", "path to a YAML policy file (omit to disable policy)")
@@ -181,6 +183,7 @@ func main() {
 			TlsSniLpm:   l.TlsSniLpmMap(),
 			TlsAlpnDeny: l.TlsAlpnDenyMap(),
 		}, log)
+		syncer.SetEnforce(enforce)
 		if err := syncer.Apply(docs); err != nil {
 			log.Error("initial policy apply failed", "err", err)
 			os.Exit(1)
@@ -188,6 +191,7 @@ func main() {
 		stopSync = syncer.Resolve(docs, cgw.Subscribe(), resolveEvery)
 		log.Info("policy loaded",
 			"path", policyPath, "docs", len(docs),
+			"enforce", enforce,
 			"fallback_resolve", resolveEvery, "watcher", "inotify")
 	}
 
