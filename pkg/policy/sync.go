@@ -4,6 +4,7 @@
 package policy
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -317,94 +318,135 @@ func expandRules(cgroupID uint64, rules []Rule, policyID uint32, name string) ([
 	var v6 []entryV6
 
 	for _, r := range rules {
-		_, ipnet, err := net.ParseCIDR(r.CIDR)
+		// Each rule yields one or more (CIDR, family) pairs. A `cidr`
+		// rule produces exactly one; a `host` rule produces one per
+		// resolved A/AAAA record.
+		nets, err := resolveRuleTargets(r)
 		if err != nil {
-			return nil, nil, fmt.Errorf("policy %q: cidr %q: %w", name, r.CIDR, err)
-		}
-		ones, bits := ipnet.Mask.Size()
-
-		// Build the port set: each spec is a single port or a closed
-		// range. An empty port list matches every L4 port for the
-		// selected protocol.
-		var ports []uint16
-		if len(r.Ports) == 0 {
-			ports = []uint16{0} // sentinel: 0 means "any port"
-		} else {
-			for _, ps := range r.Ports {
-				lo, hi, err := parsePortSpec(ps)
-				if err != nil {
-					return nil, nil, fmt.Errorf("policy %q: %w", name, err)
-				}
-				for p := uint32(lo); p <= uint32(hi); p++ {
-					ports = append(ports, uint16(p))
-				}
-			}
+			return nil, nil, fmt.Errorf("policy %q: %w", name, err)
 		}
 
-		protos := ProtocolCodes(r.Protocol)
-		count := len(ports) * len(protos)
-		if count > maxExpansion {
-			return nil, nil, fmt.Errorf("policy %q: rule expands to %d entries (limit %d)", name, count, maxExpansion)
-		}
+		for _, ipnet := range nets {
+			ones, bits := ipnet.Mask.Size()
 
-		val := rawValue{Verdict: VerdictCode(r.Action), PolicyID: policyID}
-
-		switch bits {
-		case 32:
-			ip4 := ipnet.IP.To4()
-			if ip4 == nil {
-				return nil, nil, fmt.Errorf("policy %q: cidr %q: not IPv4", name, r.CIDR)
-			}
-			for _, p := range ports {
-				portBE := uint16ToBE(p)
-				if p == 0 {
-					portBE = 0
-				}
-				for _, proto := range protos {
-					k := rawV4Key{
-						PrefixLen: uint32(policyHeaderBits + ones),
-						CgroupID:  cgroupID,
-						PeerPort:  portBE,
-						Protocol:  proto,
+			// Build the port set: each spec is a single port or a closed
+			// range. An empty port list matches every L4 port for the
+			// selected protocol.
+			var ports []uint16
+			if len(r.Ports) == 0 {
+				ports = []uint16{0} // sentinel: 0 means "any port"
+			} else {
+				for _, ps := range r.Ports {
+					lo, hi, err := parsePortSpec(ps)
+					if err != nil {
+						return nil, nil, fmt.Errorf("policy %q: %w", name, err)
 					}
-					copy(k.IP[:], ip4)
-					v4 = append(v4, entryV4{key: k, val: val})
-				}
-			}
-		case 128:
-			ip6 := ipnet.IP.To16()
-			for _, p := range ports {
-				portBE := uint16ToBE(p)
-				if p == 0 {
-					portBE = 0
-				}
-				for _, proto := range protos {
-					k := rawV6Key{
-						PrefixLen: uint32(policyHeaderBits + ones),
-						CgroupID:  cgroupID,
-						PeerPort:  portBE,
-						Protocol:  proto,
+					for p := uint32(lo); p <= uint32(hi); p++ {
+						ports = append(ports, uint16(p))
 					}
-					copy(k.IP[:], ip6)
-					v6 = append(v6, entryV6{key: k, val: val})
 				}
 			}
-		default:
-			return nil, nil, fmt.Errorf("policy %q: cidr %q has unsupported address size %d", name, r.CIDR, bits)
-		}
 
-		// "Any port" means we also need entries with prefix excluding
-		// the port byte from exact match. Cleaner implementation: when
-		// ports is the {0} sentinel, set prefix_len to skip the port
-		// field entirely (cgroup_id 64 + 0 + proto 8 + ip = 72 + ip).
-		// Re-emit with corrected prefix_len.
-		if len(r.Ports) == 0 {
-			// Drop what we just appended for port=0 and re-add with
-			// prefix_len adjusted to ignore the port field.
-			adjustPrefixForAnyPort(&v4, &v6, ones, bits)
+			protos := ProtocolCodes(r.Protocol)
+			count := len(ports) * len(protos)
+			if count > maxExpansion {
+				return nil, nil, fmt.Errorf("policy %q: rule expands to %d entries (limit %d)", name, count, maxExpansion)
+			}
+
+			val := rawValue{Verdict: VerdictCode(r.Action), PolicyID: policyID}
+
+			switch bits {
+			case 32:
+				ip4 := ipnet.IP.To4()
+				if ip4 == nil {
+					return nil, nil, fmt.Errorf("policy %q: cidr %q: not IPv4", name, r.CIDR)
+				}
+				for _, p := range ports {
+					portBE := uint16ToBE(p)
+					if p == 0 {
+						portBE = 0
+					}
+					for _, proto := range protos {
+						k := rawV4Key{
+							PrefixLen: uint32(policyHeaderBits + ones),
+							CgroupID:  cgroupID,
+							PeerPort:  portBE,
+							Protocol:  proto,
+						}
+						copy(k.IP[:], ip4)
+						v4 = append(v4, entryV4{key: k, val: val})
+					}
+				}
+			case 128:
+				ip6 := ipnet.IP.To16()
+				for _, p := range ports {
+					portBE := uint16ToBE(p)
+					if p == 0 {
+						portBE = 0
+					}
+					for _, proto := range protos {
+						k := rawV6Key{
+							PrefixLen: uint32(policyHeaderBits + ones),
+							CgroupID:  cgroupID,
+							PeerPort:  portBE,
+							Protocol:  proto,
+						}
+						copy(k.IP[:], ip6)
+						v6 = append(v6, entryV6{key: k, val: val})
+					}
+				}
+			default:
+				return nil, nil, fmt.Errorf("policy %q: cidr %q has unsupported address size %d", name, r.CIDR, bits)
+			}
+
+			// "Any port" sentinel: re-tune the prefix_len of the entries
+			// we just appended so the LPM lookup ignores the port field.
+			// Done per ipnet because each FQDN-resolved address may have
+			// a different family / prefix length.
+			if len(r.Ports) == 0 {
+				adjustPrefixForAnyPort(&v4, &v6, ones, bits)
+			}
 		}
 	}
 	return v4, v6, nil
+}
+
+// resolveRuleTargets returns the list of CIDR/IP targets the rule
+// applies to. For a CIDR-shaped rule it's a single entry; for a
+// Host-shaped rule it's one entry per resolved A/AAAA record (each
+// as a /32 or /128). DNS lookup uses the system resolver with a 2-
+// second timeout so a slow / failing resolver doesn't stall the
+// agent's Apply loop.
+func resolveRuleTargets(r Rule) ([]*net.IPNet, error) {
+	if r.CIDR != "" {
+		_, n, err := net.ParseCIDR(r.CIDR)
+		if err != nil {
+			return nil, fmt.Errorf("cidr %q: %w", r.CIDR, err)
+		}
+		return []*net.IPNet{n}, nil
+	}
+	if r.Host == "" {
+		return nil, fmt.Errorf("rule has neither cidr nor host")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, r.Host)
+	if err != nil {
+		return nil, fmt.Errorf("host %q: resolve: %w", r.Host, err)
+	}
+	out := make([]*net.IPNet, 0, len(addrs))
+	for _, a := range addrs {
+		if v4 := a.IP.To4(); v4 != nil {
+			out = append(out, &net.IPNet{IP: v4, Mask: net.CIDRMask(32, 32)})
+		} else {
+			out = append(out, &net.IPNet{IP: a.IP.To16(), Mask: net.CIDRMask(128, 128)})
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("host %q: resolved to no addresses", r.Host)
+	}
+	return out, nil
 }
 
 // adjustPrefixForAnyPort shrinks prefix_len so the LPM lookup does not

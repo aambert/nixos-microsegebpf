@@ -68,11 +68,23 @@ type Selector struct {
 
 // Rule is one allow/drop entry.
 //
+// Exactly one of `CIDR` or `Host` must be set:
+//   - CIDR ("10.0.0.0/24", "1.1.1.1/32", "2001:4860::/32") — the
+//     IP / prefix is matched directly in the kernel LPM trie.
+//   - Host ("internal-api.corp.example.com") — the agent resolves
+//     the FQDN to A and AAAA records via the system resolver and
+//     installs one /32 (v4) or /128 (v6) entry per resolved address.
+//     Re-resolution happens on every Apply() (cgroup-event-driven
+//     or fallback ticker), so the rule follows the FQDN as its DNS
+//     records change. A resolution failure logs a warning and skips
+//     the rule for that Apply round.
+//
 // Ports may be a single number ("443") or a range ("8000-8099"). An
 // empty Ports list matches every L4 port for the chosen protocol.
 type Rule struct {
 	Action   string   `yaml:"action"`
 	CIDR     string   `yaml:"cidr"`
+	Host     string   `yaml:"host"`
 	Ports    []string `yaml:"ports"`
 	Protocol string   `yaml:"protocol"` // tcp | udp | "" (= both)
 }
@@ -146,8 +158,22 @@ func (r *Rule) validate() error {
 	default:
 		return fmt.Errorf("action must be allow|drop|log, got %q", r.Action)
 	}
-	if _, _, err := net.ParseCIDR(r.CIDR); err != nil {
-		return fmt.Errorf("cidr %q: %w", r.CIDR, err)
+	hasCIDR := r.CIDR != ""
+	hasHost := r.Host != ""
+	if hasCIDR == hasHost {
+		return fmt.Errorf("exactly one of cidr or host must be set")
+	}
+	if hasCIDR {
+		if _, _, err := net.ParseCIDR(r.CIDR); err != nil {
+			return fmt.Errorf("cidr %q: %w", r.CIDR, err)
+		}
+	} else {
+		if len(r.Host) > 253 {
+			return fmt.Errorf("host %q exceeds DNS max length 253", r.Host)
+		}
+		if strings.ContainsAny(r.Host, " \t/") {
+			return fmt.Errorf("host %q must be a bare DNS name", r.Host)
+		}
 	}
 	if r.Protocol != "" && r.Protocol != "tcp" && r.Protocol != "udp" {
 		return fmt.Errorf("protocol must be tcp|udp|empty, got %q", r.Protocol)
