@@ -195,6 +195,33 @@ rec {
         sniDeny = hostnames;
       };
 
+    # FQDN-resolved L3/L4 deny list. Drops egress to every IP the
+    # given hostnames currently resolve to (on the supplied ports +
+    # protocol). The agent re-resolves on every Apply, so the rule
+    # follows the destination as its DNS records rotate — useful for
+    # CDN-fronted services where the IPs change frequently and a
+    # static CIDR list goes stale.
+    #
+    # Caveat: this matches whatever the *agent's* resolver returns,
+    # not what the application itself resolved. For load-balanced
+    # destinations with many IPs, the two views can briefly diverge;
+    # the next Apply round catches up.
+    deny-host =
+      { hostnames,
+        ports ? [ "443" ],
+        protocol ? "tcp",
+        cgroupPath ? "/",
+      }:
+      mkPolicy {
+        name = "baseline-deny-host";
+        selector = { inherit cgroupPath; };
+        egress = map (h: {
+          action = "drop";
+          host   = h;
+          inherit ports protocol;
+        }) hostnames;
+      };
+
     # ALPN deny list. Drops TLS connections that advertise any of the
     # supplied ALPN identifiers. Niche but powerful: in air-gapped
     # deployments where only specific protocols are allowed, listing

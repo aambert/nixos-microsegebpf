@@ -76,6 +76,13 @@ pkgs.testers.runNixOSTest {
           { address = "fc00::1"; prefixLength = 64; }
         ];
 
+        # /etc/hosts entry for the FQDN drop test. The agent's policy
+        # uses `host: fqdn-blocked.test`; resolution must yield the
+        # peer's IPv4 deterministically (no real DNS in the test VLAN).
+        networking.extraHosts = ''
+          192.168.1.1  fqdn-blocked.test
+        '';
+
         # Dedicated systemd units for the L3/L4 drop test. Using
         # `User = "alice"` with `Type = "oneshot"` gives us a stable
         # cgroup with a known unit name that the policy selector can
@@ -99,6 +106,17 @@ pkgs.testers.runNixOSTest {
           script = "${pkgs.coreutils}/bin/sleep 2 && ${pkgs.curl}/bin/curl --max-time 5 http://192.168.1.1:8080/";
         };
 
+        # FQDN-by-host drop test. The policy below uses
+        # `host: fqdn-blocked.test`; the agent will resolve it via the
+        # system resolver -> /etc/hosts -> 192.168.1.1 (the peer), then
+        # install a /32 entry that drops port 8080 traffic from this
+        # service's cgroup.
+        systemd.services.alice-test-curl-fqdn-blocked = {
+          description = "Curl by FQDN to peer:8080 — should be DROP via host: rule";
+          serviceConfig = { Type = "oneshot"; User = "alice"; };
+          script = "${pkgs.coreutils}/bin/sleep 2 && ${pkgs.curl}/bin/curl --max-time 3 http://fqdn-blocked.test:8080/";
+        };
+
         services.microsegebpf = {
           enable = true;
           enforce = true;
@@ -113,6 +131,18 @@ pkgs.testers.runNixOSTest {
                   ports = [ "8080" ];
                   protocol = "tcp";
                 })
+              ];
+            })
+            (policies.mkPolicy {
+              name = "vm-test-drop-by-fqdn";
+              selector = { systemdUnit = "alice-test-curl-fqdn-blocked.service"; };
+              egress = [
+                {
+                  action = "drop";
+                  host = "fqdn-blocked.test";
+                  ports = [ "8080" ];
+                  protocol = "tcp";
+                }
               ];
             })
             (policies.mkPolicy {
@@ -215,6 +245,15 @@ pkgs.testers.runNixOSTest {
     # exit code, so a non-zero curl (timeout / connect refused once
     # the BPF drop kicks in) makes systemctl exit non-zero too.
     target.fail("systemctl start alice-test-curl-blocked.service")
+
+    # ----------------------------------------------------------
+    # L3/L4 drop selected by FQDN (host: rule)
+    # ----------------------------------------------------------
+    # The agent resolves fqdn-blocked.test via the system resolver,
+    # which hits /etc/hosts (extraHosts) and gets 192.168.1.1. That
+    # IP is then installed as /32 in the egress LPM, dropping curl
+    # from the matching service cgroup.
+    target.fail("systemctl start alice-test-curl-fqdn-blocked.service")
 
     # ----------------------------------------------------------
     # TLS SNI drop — IPv4

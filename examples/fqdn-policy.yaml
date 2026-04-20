@@ -1,0 +1,27 @@
+# Example FQDN-by-hostname policy. Demonstrates the `host:` rule
+# field added in 6d22fb9 — the agent resolves the FQDN via the
+# system resolver and installs one /32 (v4) or /128 (v6) entry per
+# returned address. Re-resolution happens on every Apply (cgroup
+# event or fallback ticker).
+---
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: deny-by-fqdn
+spec:
+  selector:
+    cgroupPath: /
+  egress:
+    # Block egress to whatever IPs example.com currently resolves to,
+    # on TCP/443. The rule will follow the FQDN as its DNS records
+    # rotate (re-resolved on every cgroup-event-driven Apply).
+    - action: drop
+      host: example.com
+      ports: ["443"]
+      protocol: tcp
+    # Same idea, but on every TCP/UDP port — useful when you want
+    # to ban a destination outright regardless of the protocol.
+    - action: drop
+      host: ipinfo.io
+      ports: ["80", "443"]
+      protocol: tcp

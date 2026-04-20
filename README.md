@@ -797,6 +797,7 @@ A complete deployment flake lives in
 | `deny-rfc1918-from-user-session { cgroupPath, ports }` | Blocks lateral movement to RFC1918 from the user session. |
 | `smtp-relay-only { relayCIDR, port }` | Egress on TCP/25 only to the named relay; everything else dropped. |
 | `deny-threat-feed { ips, cgroupPath, ports }` | Blocks an explicit list of C2/sinkhole IPs. Caller supplies the list, typically generated from a threat-intel feed at deploy time. |
+| `deny-host { hostnames, ports, protocol, cgroupPath }` | L3/L4 deny by FQDN. The agent resolves each hostname on every Apply and installs one /32 (v4) or /128 (v6) entry per A/AAAA record. Follows the destination as its DNS records rotate — handy for CDN-fronted services where a static CIDR goes stale. |
 | `deny-sni { hostnames }` | TLS peek deny by SNI. Accepts exact patterns (`facebook.com`) and single-label wildcards (`*.facebook.com`). Backed by an LPM trie on the reversed hostname, see ARCHITECTURE.md §9.2. |
 | `deny-alpn { protocols }` | TLS peek deny by ALPN identifier (`h2`, `http/1.1`, `imap`, `smtp`, ...). Use sparingly: blanket-blocking `h2` knocks out almost every modern HTTPS client. |
 
