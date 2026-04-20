@@ -457,16 +457,21 @@ in
         Type = "simple";
         ExecStart = lib.concatStringsSep " " [
           "${cfg.package}/bin/microseg-agent"
+          # Bool flags use explicit `=true|false` form so the agent's
+          # own default never silently takes over when the module
+          # opts the user out — same gap that the enforce wiring used
+          # to have. emit-allow is the historic offender: agent
+          # default is true (verbose), module default is false (quiet).
           "-enforce=${lib.boolToString cfg.enforce}"
+          "-emit-allow=${lib.boolToString cfg.emitAllowEvents}"
+          "-block-quic=${lib.boolToString cfg.blockQuic}"
           "-default-egress=${cfg.defaultEgress}"
           "-default-ingress=${cfg.defaultIngress}"
-          (lib.optionalString cfg.emitAllowEvents "-emit-allow=true")
           (lib.optionalString (cfg.policies != [ ]) "-policy=${policyFile}")
           "-hubble-addr=${cfg.hubble.listen}"
           "-hubble-buffer=${toString cfg.hubble.bufferSize}"
           "-resolve-every=${cfg.resolveInterval}"
           "-tls-ports=${lib.concatStringsSep "," (map toString cfg.tlsPorts)}"
-          (lib.optionalString cfg.blockQuic "-block-quic=true")
         ];
         Restart = "on-failure";
         RestartSec = "3s";

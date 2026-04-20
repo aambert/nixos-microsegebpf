@@ -1173,15 +1173,25 @@ What's on the roadmap:
 ## License
 
 All source files use the MIT License. The kernel-side eBPF program
-in `bpf/microseg.c` is additionally tagged GPL-2.0-only via
-`SPDX-License-Identifier: (MIT AND GPL-2.0-only)` and declares the
-runtime LICENSE string `"Dual MIT/GPL"` so the BPF subsystem accepts
-it for GPL-only helpers (`bpf_loop`, `bpf_skb_cgroup_id`, etc).
+in `bpf/microseg.c` is additionally tagged GPL-2.0-only via a dual
+SPDX expression and declares the runtime LICENSE string
+`"Dual MIT/GPL"` so the BPF subsystem accepts it for GPL-only
+helpers (`bpf_loop`, `bpf_skb_cgroup_id`, etc).
+
+<!-- REUSE-IgnoreStart -->
+The exact SPDX header on `bpf/microseg.c` is
+`SPDX-License-Identifier: (MIT AND GPL-2.0-only)`. The `reuse lint`
+tool would otherwise try to parse the wrapping markdown sentence
+as a real license declaration; the IgnoreStart/End comments tell
+it to skip that paragraph.
+<!-- REUSE-IgnoreEnd -->
 
 REUSE-compliant: every file has either an in-file SPDX header or a
 glob in [`REUSE.toml`](REUSE.toml). Run `reuse lint` to verify. See
 [LICENSE](LICENSE) for the full per-file breakdown and
-[`LICENSES/MIT.txt`](LICENSES/MIT.txt) for the canonical text.
+[`LICENSES/MIT.txt`](LICENSES/MIT.txt) for the canonical text;
+[`LICENSES/GPL-2.0-only.txt`](LICENSES/GPL-2.0-only.txt) carries the
+dual licence text required by the BPF subsystem.
 
 ## Acknowledgements
 

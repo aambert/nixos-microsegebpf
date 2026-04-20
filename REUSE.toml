@@ -5,17 +5,19 @@ version = 1
 # annotate them in bulk here.
 
 [[annotations]]
-SPDX-FileCopyrightText = "aurelien.ambert@proton.me"
+SPDX-FileCopyrightText = "2026 Aurélien Ambert <aurelien.ambert@proton.me>"
 SPDX-License-Identifier = "MIT"
 path = [
   ".github/workflows/*",
   ".gitattributes",
   ".gitignore",
   "REUSE.toml",
+  "LICENSE",
   "go.mod",
   "go.sum",
   "flake.lock",
   "examples/*.yaml",
+  "*.md",
 ]
 
 # CO-RE / BTF artefacts derived from the running kernel are
