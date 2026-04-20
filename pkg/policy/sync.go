@@ -114,26 +114,21 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 		policyID++
 	}
 
-	if err := replaceV4(s.maps.EgressV4, egV4, "egress_v4"); err != nil {
-		return err
-	}
-	if err := replaceV4(s.maps.IngressV4, inV4, "ingress_v4"); err != nil {
-		return err
-	}
-	if err := replaceV6(s.maps.EgressV6, egV6, "egress_v6"); err != nil {
-		return err
-	}
-	if err := replaceV6(s.maps.IngressV6, inV6, "ingress_v6"); err != nil {
-		return err
-	}
+	// Build the desired-state maps once. Duplicate keys collapse —
+	// last writer wins, which matches the semantics the kernel LPM
+	// trie would also enforce (single value per key).
+	desiredEgV4 := entriesToMapV4(egV4)
+	desiredInV4 := entriesToMapV4(inV4)
+	desiredEgV6 := entriesToMapV6(egV6)
+	desiredInV6 := entriesToMapV6(inV6)
 
 	// TLS peek deny maps:
 	//   * SNI: LPM trie keyed on reversed hostname, supports wildcards
 	//   * ALPN: HASH on FNV-1a 64-bit (must match bpf/microseg.c::fnv64a)
 	// Per-cgroup scoping is deliberately absent for the PoC — see
 	// TlsSpec for the rationale.
-	sniEntries := map[sniLpmEntry]uint32{}
-	alpnHashes := map[uint64]uint32{}
+	desiredSni := map[sniLpmEntry]rawValue{}
+	desiredAlpn := map[uint64]rawValue{}
 	for i, d := range docs {
 		if d.Spec.Tls == nil {
 			continue
@@ -144,26 +139,142 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 			if err != nil {
 				return fmt.Errorf("policy %q: tls.sniDeny[%q]: %w", d.Metadata.Name, pat, err)
 			}
-			sniEntries[e] = pid
+			desiredSni[e] = rawValue{Verdict: 1, PolicyID: pid}
 		}
 		for _, a := range d.Spec.Tls.ALPNDeny {
-			alpnHashes[fnv64a([]byte(a))] = pid
+			desiredAlpn[fnv64a([]byte(a))] = rawValue{Verdict: 1, PolicyID: pid}
 		}
 	}
-	if err := replaceSniLpm(s.maps.TlsSniLpm, sniEntries, "tls_sni_lpm"); err != nil {
-		return err
+
+	// Delta apply, in this order:
+	//   1. Adds + updates first  -> the new state lands in the BPF
+	//      maps before any old entry is removed, so flows that match
+	//      both old and new policy never see a transient miss.
+	//   2. Deletes last           -> entries that the new policy no
+	//      longer wants are removed only after every other change is
+	//      already in place.
+	//   3. Unchanged entries are not touched at all (no syscall).
+	// This is the "no coupure" guarantee — only entries whose value
+	// actually changes go through a brief atomic Update; everything
+	// else stays put.
+	stats := struct {
+		egV4, inV4, egV6, inV6, sni, alpn deltaStats
+	}{}
+	var derr error
+	if stats.egV4, derr = applyDelta[rawV4Key](s.maps.EgressV4, desiredEgV4, "egress_v4"); derr != nil {
+		return derr
 	}
-	if err := replaceTlsHash(s.maps.TlsAlpnDeny, alpnHashes, "tls_alpn_deny"); err != nil {
-		return err
+	if stats.inV4, derr = applyDelta[rawV4Key](s.maps.IngressV4, desiredInV4, "ingress_v4"); derr != nil {
+		return derr
+	}
+	if stats.egV6, derr = applyDelta[rawV6Key](s.maps.EgressV6, desiredEgV6, "egress_v6"); derr != nil {
+		return derr
+	}
+	if stats.inV6, derr = applyDelta[rawV6Key](s.maps.IngressV6, desiredInV6, "ingress_v6"); derr != nil {
+		return derr
+	}
+	if stats.sni, derr = applyDelta[sniLpmEntry](s.maps.TlsSniLpm, desiredSni, "tls_sni_lpm"); derr != nil {
+		return derr
+	}
+	if stats.alpn, derr = applyDelta[uint64](s.maps.TlsAlpnDeny, desiredAlpn, "tls_alpn_deny"); derr != nil {
+		return derr
 	}
 
-	s.log.Info("policy applied",
+	s.log.Info("policy applied (delta)",
 		"docs", len(docs),
-		"egress_v4", len(egV4), "ingress_v4", len(inV4),
-		"egress_v6", len(egV6), "ingress_v6", len(inV6),
-		"tls_sni", len(sniEntries), "tls_alpn", len(alpnHashes),
+		"egress_v4", stats.egV4.Compact(),
+		"ingress_v4", stats.inV4.Compact(),
+		"egress_v6", stats.egV6.Compact(),
+		"ingress_v6", stats.inV6.Compact(),
+		"tls_sni", stats.sni.Compact(),
+		"tls_alpn", stats.alpn.Compact(),
 	)
 	return nil
+}
+
+// deltaStats summarises one map's delta-apply round.
+type deltaStats struct {
+	Added, Updated, Deleted, Unchanged int
+}
+
+// Compact renders the stats as a one-line summary suitable for slog
+// — "+2 ~1 -3 =14" reads at a glance: 2 additions, 1 update, 3
+// deletions, 14 entries left untouched.
+func (s deltaStats) Compact() string {
+	return fmt.Sprintf("+%d ~%d -%d =%d", s.Added, s.Updated, s.Deleted, s.Unchanged)
+}
+
+func entriesToMapV4(es []entryV4) map[rawV4Key]rawValue {
+	m := make(map[rawV4Key]rawValue, len(es))
+	for _, e := range es {
+		m[e.key] = e.val
+	}
+	return m
+}
+
+func entriesToMapV6(es []entryV6) map[rawV6Key]rawValue {
+	m := make(map[rawV6Key]rawValue, len(es))
+	for _, e := range es {
+		m[e.key] = e.val
+	}
+	return m
+}
+
+// applyDelta reconciles the contents of `m` with `desired`:
+//
+//   - keys present in `desired` whose current value matches:   no-op
+//   - keys present in `desired` whose current value differs:   Update (atomic at kernel level)
+//   - keys present in `desired` but absent from the map:       Update (insert)
+//   - keys present in the map but absent from `desired`:       Delete
+//
+// Adds + updates are applied before deletes so there is no transient
+// state where the new policy is missing an entry it should have.
+//
+// `K` must be the exact Go shape of the BPF map's key type — it's
+// passed to `bpf_map_lookup_elem` / `bpf_map_update_elem` as raw
+// bytes, so any padding mismatch silently breaks the contract.
+func applyDelta[K comparable](m *ebpf.Map, desired map[K]rawValue, label string) (deltaStats, error) {
+	var stats deltaStats
+	if m == nil {
+		return stats, nil
+	}
+
+	current := map[K]rawValue{}
+	var k K
+	var v rawValue
+	it := m.Iterate()
+	for it.Next(&k, &v) {
+		current[k] = v
+	}
+
+	for desKey, desVal := range desired {
+		cur, exists := current[desKey]
+		if exists && cur == desVal {
+			stats.Unchanged++
+			continue
+		}
+		kk, vv := desKey, desVal
+		if err := m.Update(&kk, &vv, ebpf.UpdateAny); err != nil {
+			return stats, fmt.Errorf("%s update: %w", label, err)
+		}
+		if exists {
+			stats.Updated++
+		} else {
+			stats.Added++
+		}
+	}
+
+	for curKey := range current {
+		if _, exists := desired[curKey]; exists {
+			continue
+		}
+		kk := curKey
+		if err := m.Delete(&kk); err != nil {
+			return stats, fmt.Errorf("%s delete: %w", label, err)
+		}
+		stats.Deleted++
+	}
+	return stats, nil
 }
 
 // sniLpmEntry is the raw (prefix_len, name[256]) shape of a single
@@ -233,32 +344,6 @@ func reverseBytes(s string) string {
 	return string(b)
 }
 
-// replaceSniLpm flushes and repopulates the SNI LPM trie. Same
-// pattern as the v4/v6 LPM replace functions.
-func replaceSniLpm(m *ebpf.Map, entries map[sniLpmEntry]uint32, label string) error {
-	if m == nil {
-		return nil
-	}
-	var k sniLpmEntry
-	var v rawValue
-	it := m.Iterate()
-	var keys []sniLpmEntry
-	for it.Next(&k, &v) {
-		keys = append(keys, k)
-	}
-	for i := range keys {
-		_ = m.Delete(&keys[i])
-	}
-	for k, pid := range entries {
-		hk := k
-		val := rawValue{Verdict: 1, PolicyID: pid}
-		if err := m.Update(&hk, &val, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("%s update: %w", label, err)
-		}
-	}
-	return nil
-}
-
 // fnv64a is the byte-for-byte twin of bpf/microseg.c::fnv64a. Drift
 // here means TLS lookups silently miss; keep them in lockstep.
 func fnv64a(b []byte) uint64 {
@@ -270,34 +355,6 @@ func fnv64a(b []byte) uint64 {
 		h *= prime
 	}
 	return h
-}
-
-// replaceTlsHash flushes and repopulates a u64 -> rawValue HASH map.
-// Used for tls_alpn_deny (and historically tls_sni_deny before the SNI
-// map became LPM-keyed in tls_sni_lpm). They share the same
-// shape.
-func replaceTlsHash(m *ebpf.Map, entries map[uint64]uint32, label string) error {
-	if m == nil {
-		return nil
-	}
-	var k uint64
-	var v rawValue
-	it := m.Iterate()
-	var keys []uint64
-	for it.Next(&k, &v) {
-		keys = append(keys, k)
-	}
-	for i := range keys {
-		_ = m.Delete(&keys[i])
-	}
-	for h, pid := range entries {
-		hk := h
-		val := rawValue{Verdict: 1, PolicyID: pid}
-		if err := m.Update(&hk, &val, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("%s update: %w", label, err)
-		}
-	}
-	return nil
 }
 
 func selectCgroups(sel Selector, cgs []identity.Cgroup) []identity.Cgroup {
@@ -480,55 +537,6 @@ func adjustPrefixForAnyPort(v4 *[]entryV4, v6 *[]entryV6, cidrOnes, bits int) {
 
 func uint16ToBE(v uint16) uint16 {
 	return (v&0xff)<<8 | (v&0xff00)>>8
-}
-
-// flushV4 / flushV6 drain a map by collecting every key then deleting
-// them. PoC trades a tiny atomicity gap for code simplicity; a delta
-// update is on the production roadmap.
-func flushV4(m *ebpf.Map) {
-	var k rawV4Key
-	var v rawValue
-	it := m.Iterate()
-	var keys []rawV4Key
-	for it.Next(&k, &v) {
-		keys = append(keys, k)
-	}
-	for i := range keys {
-		_ = m.Delete(&keys[i])
-	}
-}
-
-func flushV6(m *ebpf.Map) {
-	var k rawV6Key
-	var v rawValue
-	it := m.Iterate()
-	var keys []rawV6Key
-	for it.Next(&k, &v) {
-		keys = append(keys, k)
-	}
-	for i := range keys {
-		_ = m.Delete(&keys[i])
-	}
-}
-
-func replaceV4(m *ebpf.Map, entries []entryV4, label string) error {
-	flushV4(m)
-	for i := range entries {
-		if err := m.Update(&entries[i].key, &entries[i].val, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("%s update: %w", label, err)
-		}
-	}
-	return nil
-}
-
-func replaceV6(m *ebpf.Map, entries []entryV6, label string) error {
-	flushV6(m)
-	for i := range entries {
-		if err := m.Update(&entries[i].key, &entries[i].val, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("%s update: %w", label, err)
-		}
-	}
-	return nil
 }
 
 // Resolve runs Apply whenever `events` fires (event-driven, typically
