@@ -51,32 +51,32 @@ avec l'outil que les opérateurs connaissent déjà — Hubble UI.
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
 flowchart TB
 
-subgraph US["⚙ Userspace — microseg-agent (Go)"]
+subgraph US["Userspace - microseg-agent (Go)"]
   direction LR
-  PS[policy/sync<br/>apply YAML → maps BPF]
-  ID[identity/<br/>Snapshot + Watcher]
-  LD[loader (cilium/ebpf)<br/>load .o · attache cgroupv2 · ringbuf.Reader]
-  OB[observer (gRPC)<br/>implémente observer.proto<br/>sert Hubble UI / probe]
+  PS["policy/sync<br/>apply YAML to maps BPF"]
+  ID["identity/<br/>Snapshot + Watcher"]
+  LD["loader (cilium/ebpf)<br/>load .o, attache cgroupv2, ringbuf.Reader"]
+  OB["observer (gRPC)<br/>implemente observer.proto<br/>sert Hubble UI et probe"]
   ID -- inotify --> PS
   PS --> LD
   ID --> LD
-  LD -- événements ringbuf --> OB
+  LD -- "evenements ringbuf" --> OB
 end
 
-subgraph KE["🛡 Noyau — datapath eBPF"]
+subgraph KE["Noyau - datapath eBPF"]
   direction LR
-  MAPS[(Maps BPF<br/>egress_v4 / ingress_v4 LPM<br/>egress_v6 / ingress_v6 LPM<br/>tls_sni_lpm · tls_alpn_deny<br/>default_cfg · ringbuf events)]
-  HE[cgroup_skb/egress]
-  HI[cgroup_skb/ingress]
+  MAPS[("Maps BPF<br/>egress_v4 / ingress_v4 LPM<br/>egress_v6 / ingress_v6 LPM<br/>tls_sni_lpm + tls_alpn_deny<br/>default_cfg + ringbuf events")]
+  HE["cgroup_skb/egress"]
+  HI["cgroup_skb/ingress"]
   MAPS --> HE
   MAPS --> HI
 end
 
-PS -- Map.Update (delta) --> MAPS
-HE -. flow event .-> MAPS
-HI -. flow event .-> MAPS
+PS -- "Map.Update delta" --> MAPS
+HE -. "flow event" .-> MAPS
+HI -. "flow event" .-> MAPS
 
-KE_NOTE([attaché à la racine /sys/fs/cgroup])
+KE_NOTE(["attache a la racine /sys/fs/cgroup"])
 HE --- KE_NOTE
 HI --- KE_NOTE
 
@@ -814,12 +814,12 @@ Pipeline (quatre nœuds) :
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
 flowchart LR
-  J[journald<br/>include_units = microsegebpf-agent.service<br/>current_boot_only = true]
-  R[remap<br/>parse_json + merge<br/>guard is_object]
-  FF[filter<br/>exists.verdict]
-  FA[filter<br/>!exists.verdict]
-  SF[(elasticsearch sink<br/>indexFlows)]
-  SA[(elasticsearch sink<br/>indexAgent)]
+  J["journald<br/>include_units = microsegebpf-agent.service<br/>current_boot_only = true"]
+  R["remap<br/>parse_json + merge<br/>guard is_object"]
+  FF["filter exists(.verdict)"]
+  FA["filter not-exists(.verdict)"]
+  SF[("elasticsearch sink<br/>indexFlows")]
+  SA[("elasticsearch sink<br/>indexAgent")]
   J --> R
   R --> FF --> SF
   R --> FA --> SA
@@ -923,8 +923,8 @@ Pipeline (ajouté au split flows / agent existant) :
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'13px'}}}%%
 flowchart LR
-  FF[microseg_filter_flows] --> RF[syslog_format_flows<br/>remap RFC 5424] --> SF[(syslog_flows<br/>socket TCP+TLS)]
-  FA[microseg_filter_agent] --> RA[syslog_format_agent<br/>remap RFC 5424] --> SA[(syslog_agent<br/>socket TCP+TLS)]
+  FF["microseg_filter_flows"] --> RF["syslog_format_flows<br/>remap RFC 5424"] --> SF[("syslog_flows<br/>socket TCP+TLS")]
+  FA["microseg_filter_agent"] --> RA["syslog_format_agent<br/>remap RFC 5424"] --> SA[("syslog_agent<br/>socket TCP+TLS")]
   classDef sl fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
   class FF,RF,SF,FA,RA,SA sl
 ```
