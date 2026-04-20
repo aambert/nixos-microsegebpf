@@ -1,0 +1,12 @@
+# Linux-targeted project: enforce LF in the repo, regardless of the
+# contributor's host OS. Without this, Windows checkouts produce CRLF
+# line endings that confuse `bpf2go`, the eBPF verifier (when reading
+# the embedded BTF), and shell snippets in Nix derivations.
+* text=auto eol=lf
+
+# Generated/binary artefacts
+*.o      binary
+*.so     binary
+*.a      binary
+*.png    binary
+*.jpg    binary

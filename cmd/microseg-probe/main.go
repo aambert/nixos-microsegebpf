@@ -1,0 +1,127 @@
+// SPDX-FileCopyrightText: 2026 Aurélien Ambert <aurelien.ambert@proton.me>
+// SPDX-License-Identifier: MIT
+//
+// microseg-probe is a tiny Hubble client used to verify that the agent's
+// observer.proto implementation answers correctly. It mirrors the calls
+// hubble-ui issues at startup (ServerStatus + GetFlows stream).
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"strings"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	flowpb "github.com/cilium/cilium/api/v1/flow"
+	observerpb "github.com/cilium/cilium/api/v1/observer"
+)
+
+func main() {
+	addr := flag.String("addr", "unix:/run/microseg/hubble.sock", "agent observer address")
+	follow := flag.Bool("follow", false, "stream live flows after the historical replay")
+	limit := flag.Uint64("limit", 5, "max historical flows to print (0 = all)")
+	flag.Parse()
+
+	dialer := grpc.WithContextDialer(func(ctx context.Context, target string) (net.Conn, error) {
+		network, t := splitAddr(target)
+		var d net.Dialer
+		return d.DialContext(ctx, network, t)
+	})
+
+	conn, err := grpc.NewClient(*addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		dialer,
+	)
+	if err != nil {
+		log.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	c := observerpb.NewObserverClient(conn)
+
+	st, err := c.ServerStatus(context.Background(), &observerpb.ServerStatusRequest{})
+	if err != nil {
+		log.Fatalf("ServerStatus: %v", err)
+	}
+	fmt.Printf("=== ServerStatus ===\n")
+	fmt.Printf("  Version:        %s\n", st.Version)
+	fmt.Printf("  NumFlows:       %d / %d\n", st.NumFlows, st.MaxFlows)
+	fmt.Printf("  ConnectedNodes: %d\n", st.GetNumConnectedNodes().GetValue())
+	fmt.Printf("  Uptime:         %v\n", time.Duration(st.UptimeNs))
+
+	nodes, err := c.GetNodes(context.Background(), &observerpb.GetNodesRequest{})
+	if err != nil {
+		log.Fatalf("GetNodes: %v", err)
+	}
+	fmt.Printf("=== GetNodes ===\n")
+	for _, n := range nodes.Nodes {
+		fmt.Printf("  - name=%s state=%s version=%s\n", n.Name, n.State, n.Version)
+	}
+
+	stream, err := c.GetFlows(context.Background(), &observerpb.GetFlowsRequest{
+		Number: *limit,
+		Follow: *follow,
+	})
+	if err != nil {
+		log.Fatalf("GetFlows: %v", err)
+	}
+	fmt.Printf("=== GetFlows (limit=%d, follow=%v) ===\n", *limit, *follow)
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Recv: %v", err)
+		}
+		f := resp.GetFlow()
+		if f == nil {
+			continue
+		}
+		sport, dport := l4Ports(f)
+		fmt.Printf("  %-10s %-7s %s:%d -> %s:%d  src=%s dst=%s policy=%d\n",
+			f.Verdict.String(),
+			f.TrafficDirection.String(),
+			f.GetIP().GetSource(), sport,
+			f.GetIP().GetDestination(), dport,
+			endpointLabel(f.GetSource()),
+			endpointLabel(f.GetDestination()),
+			f.GetEventType().GetSubType(),
+		)
+	}
+}
+
+func splitAddr(s string) (network, target string) {
+	if strings.HasPrefix(s, "unix:") {
+		return "unix", strings.TrimPrefix(s, "unix:")
+	}
+	return "tcp", s
+}
+
+func endpointLabel(ep *flowpb.Endpoint) string {
+	if ep == nil {
+		return "?"
+	}
+	return ep.ClusterName + "/" + ep.PodName
+}
+
+func l4Ports(f *flowpb.Flow) (uint32, uint32) {
+	l4 := f.GetL4()
+	if l4 == nil {
+		return 0, 0
+	}
+	if t := l4.GetTCP(); t != nil {
+		return t.SourcePort, t.DestinationPort
+	}
+	if u := l4.GetUDP(); u != nil {
+		return u.SourcePort, u.DestinationPort
+	}
+	return 0, 0
+}

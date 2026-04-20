@@ -1,0 +1,64 @@
+# nixos-microsegebpf — exemple de bundle de policies (v2 : LPM + IPv6 + ranges).
+
+---
+# Bloque tout DNS/HTTPS vers la plage Cloudflare (CIDR /24) pour la
+# user.slice. Démontre LPM CIDR + port range.
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: deny-cloudflare-dns-block
+spec:
+  selector:
+    cgroupPath: /user.slice
+  egress:
+    - action: drop
+      cidr: 1.1.1.0/24
+      ports: ["443", "53", "853"]
+      protocol: tcp
+
+---
+# Bloque le préfixe IPv6 Google DNS (2001:4860::/32) pour la user.slice.
+# Démontre IPv6 LPM.
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: deny-google-v6-dns
+spec:
+  selector:
+    cgroupPath: /user.slice
+  egress:
+    - action: drop
+      cidr: 2001:4860::/32
+      ports: ["443", "53", "853"]
+
+---
+# sshd : autorise seulement le hôte QEMU sur 22, démontre selector unit.
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: sshd-restrict
+spec:
+  selector:
+    systemdUnit: sshd.service
+  ingress:
+    - action: allow
+      cidr: 10.0.2.2/32
+      ports: ["22"]
+      protocol: tcp
+
+---
+# Range de ports : interdit toute connexion sortante session-* vers la
+# plage 8000-8099 (services dev locaux). Range = 100 entrées générées,
+# bien sous la limite maxExpansion (16384).
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: deny-local-dev-ports
+spec:
+  selector:
+    cgroupPath: /user.slice
+  egress:
+    - action: drop
+      cidr: 127.0.0.0/8
+      ports: ["8000-8099"]
+      protocol: tcp

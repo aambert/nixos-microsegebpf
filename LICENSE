@@ -1,0 +1,29 @@
+nixos-microsegebpf is licensed primarily under the MIT License, with
+the kernel-side eBPF C source dual-licensed MIT/GPL-2.0 as required
+by the Linux BPF subsystem to use GPL-only kernel helpers.
+
+Per-file licensing follows the SPDX / REUSE convention:
+
+  * Userspace code (Go, Nix, docs)
+      SPDX-License-Identifier: MIT
+      Full text: LICENSES/MIT.txt
+
+  * Kernel-side eBPF source (bpf/microseg.c)
+      SPDX-License-Identifier: (MIT AND GPL-2.0-only)
+      Runtime LICENSE string: "Dual MIT/GPL"
+      Full texts: LICENSES/MIT.txt, available at
+        https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+  * Generated BPF artefacts (bpf/vmlinux.h, bpf/microseg_bpfel.{go,o})
+      SPDX-License-Identifier: GPL-2.0-only
+      Derived from the running kernel's BTF; carry the kernel's
+      license. See REUSE.toml for the per-path declaration.
+
+  * Documentation (README*.md, ARCHITECTURE*.md)
+      Inline SPDX header in each file.
+
+REUSE compliance: every file in this repository has either an
+in-file `SPDX-License-Identifier:` header or a path glob in
+`REUSE.toml`. Run `reuse lint` to verify.
+
+The complete MIT text is in `LICENSES/MIT.txt`.

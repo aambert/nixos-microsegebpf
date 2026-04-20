@@ -1,0 +1,63 @@
+# Heavy job: boot a NixOS VM, apply a microsegebpf policy, assert the
+# datapath actually blocks the matching flow. Slow (~10 min cold, ~2 min
+# with cache) so it runs only on push to main and on demand. Never
+# blocks PR feedback — the lighter nix-build workflow does that.
+name: vm-test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Force every JavaScript-based action (checkout, install-nix-action,
+# cachix-action, ...) to run on Node 24. Node 20 was deprecated from
+# GitHub runners on 2026-06-02 and removed on 2026-09-16.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  vm-test:
+    name: nixosTest end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31.10.4
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.30.2/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            # KVM acceleration if the runner exposes /dev/kvm; falls
+            # back to TCG silently otherwise (slower but works).
+            system-features = kvm nixos-test benchmark big-parallel
+
+      - name: cachix cache (read-only)
+        uses: cachix/cachix-action@v17
+        with:
+          name: nix-community
+          # Reading the public nix-community cache for hubble-ui /
+          # cilium dependencies cuts cold time by ~60 %. No write
+          # creds — pure consumer.
+
+      - name: build vm-test derivation
+        # The check is named `vm-test` in flake.nix; build it via the
+        # generic checks attribute so the path stays stable if we ever
+        # add more checks.
+        run: nix build .#checks.x86_64-linux.vm-test --print-build-logs -L
+
+      - name: dump test logs on failure
+        if: failure()
+        run: |
+          # nixosTest writes a per-machine log under result/. Surface
+          # it in the action log so the failure mode is debuggable
+          # without having to reproduce locally.
+          for log in result/log.html result/test-log/*.log; do
+            if [ -f "$log" ]; then
+              echo "=== $log ==="
+              cat "$log"
+            fi
+          done

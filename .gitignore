@@ -1,0 +1,24 @@
+# Build artefacts
+bin/
+result
+result-*
+
+# eBPF generated artefacts. We DO commit them (rather than regenerate
+# at build time) for one reason: the Nix build sandbox has no access
+# to /sys/kernel/btf/vmlinux, so neither bpftool nor `go generate` can
+# run there. Committing the outputs lets `nix-build` and the GitHub
+# Actions CI consume the agent without a real kernel underneath.
+#
+# To refresh after editing bpf/microseg.c:
+#   make generate
+# then `git add bpf/vmlinux.h bpf/microseg_bpfel.{go,o}` and commit.
+
+# Local Nix evaluation cache
+.direnv/
+.envrc
+
+# Editor metadata
+.idea/
+.vscode/
+*.swp
+*.swo

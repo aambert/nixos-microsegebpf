@@ -1,0 +1,33 @@
+version = 1
+
+# Files that don't carry a header comment of their own. The REUSE
+# specification still expects each file to be attributable, so we
+# annotate them in bulk here.
+
+[[annotations]]
+SPDX-FileCopyrightText = "aurelien.ambert@proton.me"
+SPDX-License-Identifier = "MIT"
+path = [
+  ".github/workflows/*",
+  ".gitattributes",
+  ".gitignore",
+  "REUSE.toml",
+  "go.mod",
+  "go.sum",
+  "flake.lock",
+  "examples/*.yaml",
+]
+
+# CO-RE / BTF artefacts derived from the running kernel are
+# inherently kernel-licensed (GPL-2.0-only); they're shipped here so
+# the Nix CI sandbox can build without /sys access — see .gitignore
+# for the regeneration command.
+[[annotations]]
+SPDX-FileCopyrightText = "Linus Torvalds and Linux kernel contributors"
+SPDX-License-Identifier = "GPL-2.0-only"
+path = [
+  "bpf/vmlinux.h",
+  "bpf/microseg_bpfel.go",
+  "bpf/microseg_bpfel.o",
+  "bpf/headers/.gitkeep",
+]

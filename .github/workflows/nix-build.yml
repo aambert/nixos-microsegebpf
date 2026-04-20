@@ -1,0 +1,71 @@
+# Build and lint the flake on every push and PR. Two parallel jobs so
+# a syntax error in the Go code doesn't mask a Nix evaluation problem
+# (or the other way around).
+name: nix-build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Force every JavaScript-based action (checkout, setup-go,
+# install-nix-action, ...) to run on Node 24. Node 20 was deprecated
+# from GitHub runners on 2026-06-02 and removed on 2026-09-16. Pinning
+# the env var here lets the action versions stay where they are
+# without each one needing a separate bump.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  flake-check:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31.10.4
+        with:
+          # Pin to nix 2.30 so behaviour is stable across runs. Bump
+          # only when we want a new feature; CI is not the place to
+          # discover an upstream nix bump.
+          install_url: https://releases.nixos.org/nix/nix-2.30.2/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: nix flake check (no VM tests, fast feedback)
+        # `--no-build` evaluates every output and runs the eval-time
+        # checks (deadnix, statix, types) without spending CI time on
+        # the heavy VM derivation. The vm-test job covers that
+        # separately.
+        run: nix flake check --no-build --print-build-logs
+
+      - name: build packages.default
+        run: nix build .#default --print-build-logs
+
+  go-vet:
+    name: go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go vet
+        # The bpf/ package contains a .c file (the eBPF source). Go's
+        # build refuses .c files in a package without `import "C"`,
+        # *unless* CGO is disabled — then it ignores them. cilium/ebpf
+        # is pure Go so we don't need CGO for anything else; turning
+        # it off lets `go vet` walk the whole tree without complaining.
+        env:
+          CGO_ENABLED: "0"
+        run: go vet ./...

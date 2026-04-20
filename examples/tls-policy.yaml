@@ -1,0 +1,20 @@
+# Example TLS-aware policy. SNI / ALPN matching is peek-only — we
+# inspect the cleartext ClientHello and never decrypt anything.
+---
+apiVersion: microseg.local/v1
+kind: Policy
+metadata:
+  name: deny-cloudflare-sni
+spec:
+  selector:
+    cgroupPath: /
+  tls:
+    sniDeny:
+      - "1.1.1.1"
+      - "cloudflare.com"
+      - "www.cloudflare.com"
+    # alpnDeny is intentionally empty in this example: blocking ALPN
+    # "h2" would drop almost every modern HTTPS connection. Use ALPN
+    # filtering for narrower targets (e.g. block "imap" / "smtp" /
+    # custom protocol identifiers in air-gapped deployments).
+    alpnDeny: []
