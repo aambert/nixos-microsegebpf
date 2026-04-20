@@ -14,6 +14,110 @@ racine du cgroupv2, fait correspondre le cgroup local de chaque paquet
 [Hubble UI](https://github.com/cilium/hubble-ui) upstream peut afficher
 en direct la carte des flux du poste, sans aucune ressource Kubernetes.
 
+## Architecture en un coup d'œil
+
+Le diagramme ci-dessous montre les quatre couches de confiance
+(datapath eBPF kernel, agent userspace, services co-localisés
+optionnels, plan de configuration + endpoints externes), comment un
+paquet circule du hook cgroup_skb à travers les LPM tries jusqu'au
+verdict, comment les flow events arrivent dans la Hubble UI et le
+SOC, et où vit chaque surface de durcissement scorée par CVE.
+Source canonique éditable sur
+[Lucid](https://lucid.app/lucidchart/3c6f7cd3-fd85-4a27-92d5-5c3a8bd26d47/view).
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFFFFF', 'primaryTextColor':'#0F172A',
+  'primaryBorderColor':'#475569', 'lineColor':'#475569',
+  'fontFamily':'monospace', 'fontSize':'13px'
+}}}%%
+flowchart TB
+
+%% ───────── Kernel ─────────
+subgraph KER["🛡 Noyau Linux — datapath eBPF (cgroup_skb)"]
+  direction LR
+  K1[cgroup_skb/egress<br/>chaque paquet sortant]
+  K2[cgroup_skb/ingress<br/>chaque paquet entrant]
+  K3[(LPM tries<br/>egress_v4/v6, ingress_v4/v6<br/>clé : cgroup_id, port, proto, ip)]
+  K4[(tls_sni_lpm + tls_alpn_deny)]
+  K5[Peeker TLS ClientHello<br/>SNI + ALPN via bpf_loop<br/>scratch per-CPU 256 octets]
+  K6{Verdict<br/>SK_PASS / SK_DROP}
+  K7[(Ring buffer 1 MiB)]
+  K8[(map default_cfg<br/>enforce, tlsPorts, blockQuic)]
+  K1 -- lookup --> K3
+  K2 -- lookup --> K3
+  K5 -- LPM inversé --> K4
+  K3 --> K6
+  K4 --> K6
+  K6 -- flow event --> K7
+end
+
+%% ───────── Agent userspace ─────────
+subgraph AG["⚙ microsegebpf-agent.service · CAP_BPF · NET_ADMIN · PERFMON"]
+  direction LR
+  A1[pkg/loader<br/>cilium/ebpf<br/>load .o → attach cgroupv2]
+  A2[pkg/policy<br/>Map.Update delta<br/>cache DNS 60s + stale-while-error<br/>cap fichier 16 MiB]
+  A3[pkg/identity<br/>walker cgroup<br/>inotify pub/sub Subscribe]
+  A4[pkg/observer<br/>gRPC Hubble<br/>socket unix / TCP+TLS / mTLS]
+  A6([Binaire Go statique · closure runtime 4 composants<br/>iana-etc · mailcap · agent · tzdata<br/>NoNewPrivileges · ProtectSystem strict · SystemCallFilter])
+  A3 -- événements cgroup --> A2
+  A3 -- événements cgroup --> A4
+end
+A1 -- attach + load --> K1
+A1 -- ring read --> K7
+A2 -- write delta --> K3
+A2 -- write delta --> K4
+
+%% ───────── Co-located optional services ─────────
+subgraph OPT["🔌 Services co-localisés optionnels (chacun opt-in via le module NixOS)"]
+  direction LR
+  O1[microsegebpf-log-shipper.service<br/>Vector 0.52 · DynamicUser<br/>journald → parse_json → split → 4 sinks]
+  O2[hubble-ui · OCI v0.13.5 podman<br/>volume /run/microseg<br/>bind 127.0.0.1:12000 only]
+  O3[systemd-journald<br/>buffers stdout/stderr par boot<br/>curseur dans /var/lib/vector]
+  O4[CLI microseg-probe<br/>-tls-ca/-cert/-key/-server-name]
+  O3 --> O1
+end
+A4 -- gRPC<br/>unix ou TCP+TLS --> O2
+A4 -- gRPC --> O4
+AG -. stdout/stderr .-> O3
+
+%% ───────── Configuration + external ─────────
+subgraph EXT["🌐 Plan de configuration &amp; endpoints externes"]
+  direction LR
+  E1[/Flake GitOps + module NixOS<br/>services.microsegebpf.{enable, enforce,<br/>policies, hubble.tls, dnsCacheTTL,<br/>logs.opensearch, logs.syslog}/]
+  E2[/Policy YAML<br/>règles : cidr | host<br/>selector : cgroupPath | systemdUnit<br/>tls.sniDeny / tls.alpnDeny<br/>8 baselines/]
+  E3([👤 Opérateur])
+  E4[Résolveur DNS<br/>système /etc/resolv.conf<br/>idéalement DNSSEC validating local]
+  E5[(OpenSearch / SIEM<br/>index flows + index agent<br/>Vector elasticsearch sink)]
+  E6[(SIEM syslog corp<br/>rsyslog · syslog-ng · Splunk · Wazuh<br/>port 6514 RFC 5425 TLS)]
+end
+E1 -- render flags --> AG
+E2 -. -policy=… .-> A2
+E3 -- ssh -L 12000 --> O2
+E3 -- CLI inspect --> O4
+A2 -. host: re-résolve .-> E4
+O1 -. _bulk HTTPS .-> E5
+O1 -. RFC 5425 TLS .-> E6
+
+%% styles
+classDef kernel fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
+classDef agent  fill:#D1FAE5,stroke:#065F46,stroke-width:2px
+classDef opt    fill:#EDE9FE,stroke:#5B21B6,stroke-width:2px
+classDef ext    fill:#FEF3C7,stroke:#92400E,stroke-width:2px
+class KER kernel
+class AG  agent
+class OPT opt
+class EXT ext
+```
+
+> **Frontières de confiance** — bordures pleines = processus /
+> primitives kernel ; formes arrondies = documents de
+> configuration ; cylindres = stores stateful (maps eBPF, journald,
+> OpenSearch). Flèches pleines = paths in-process / kernel ;
+> flèches pointillées = traversent le réseau ou la frontière de
+> configuration on-disk. Chaque composant de la rangée optionnelle
+> est **off par défaut** dans le module NixOS.
+
 ---
 
 ## À quoi ça sert
