@@ -136,6 +136,102 @@ réseau sous-jacent leur permettrait de se parler.
 Linux, avec les identités naturelles du poste (id cgroupv2, unité
 systemd, uid) au lieu des labels de pod Kubernetes que Cilium exige.
 
+#### Mouvement latéral et egress par-app, illustrés
+
+Trois postes sur le même /24 plat, un bastion corporate, et une
+passerelle internet. Le firewall traditionnel traiterait le LAN
+comme une zone de confiance unique et laisserait chaque poste
+joindre chaque autre sur n'importe quel port ; l'agent eBPF de
+chaque poste transforme le LAN en zone de policy par-host, et le
+filtre egress est par-cgroup. `OK` = autorisé par le rule set ;
+`DROP` = droppé par le hook `cgroup_skb` avant que le paquet
+quitte le poste (ou avant qu'il soit délivré, en ingress).
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#FFFFFF','primaryTextColor':'#0F172A','primaryBorderColor':'#475569','lineColor':'#475569','fontFamily':'monospace','fontSize':'12px'}}}%%
+flowchart TB
+
+subgraph LAN["LAN corporate 10.0.0.0/24 - L2 plat, pas de firewall entre postes"]
+  direction LR
+  subgraph WSA["Poste-A 10.0.0.10 + microsegebpf-agent"]
+    direction TB
+    A_FF["Firefox<br/>app-firefox.scope"]
+    A_APT["apt<br/>system.slice"]
+    A_SSH["sshd.service"]
+  end
+  subgraph WSB["Poste-B 10.0.0.20 + microsegebpf-agent"]
+    direction TB
+    B_FF["Firefox"]
+    B_OFF["LibreOffice"]
+    B_SSH["sshd.service"]
+  end
+  subgraph WSC["Poste-C 10.0.0.30 + microsegebpf-agent"]
+    direction TB
+    C_DEV["VS Code"]
+    C_SSH["sshd.service"]
+  end
+  BAS["Bastion 10.0.0.42<br/>jump host corporate"]
+end
+
+GW["Passerelle internet / NAT"]
+
+subgraph NET["Internet"]
+  direction LR
+  CORP["corporate.com:443"]
+  REPO["repo.corp.com:443"]
+  DOH["1.1.1.1 DoH:443"]
+  FBC["CDN Facebook<br/>fbcdn.net:443"]
+end
+
+WSA -- "DROP SMB:445" --> WSB
+WSA -- "DROP ssh depuis pair" --> WSC
+WSB -- "DROP http:80" --> WSC
+
+BAS -- "OK ssh:22" --> WSA
+BAS -- "OK ssh:22" --> WSB
+BAS -- "OK ssh:22" --> WSC
+
+A_FF -- "OK corp.com:443" --> GW
+A_APT -- "OK repo:443" --> GW
+B_FF -- "DROP DoH 1.1.1.1" --> GW
+B_FF -- "DROP fbcdn" --> GW
+
+GW --> CORP
+GW --> REPO
+GW -. droppe .-> DOH
+GW -. droppe .-> FBC
+
+style LAN fill:#FEF3C7,stroke:#92400E,stroke-width:2px
+style WSA fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
+style WSB fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
+style WSC fill:#D1FAE5,stroke:#065F46,stroke-width:1.5px
+style BAS fill:#DBEAFE,stroke:#1E3A8A,stroke-width:1.5px
+style GW fill:#EDE9FE,stroke:#5B21B6,stroke-width:1.5px
+style NET fill:#F3F4F6,stroke:#475569,stroke-width:1.5px
+```
+
+Ce que ça montre :
+
+  * **Le mouvement latéral est contenu.** Poste-A qui essaie de
+    SMB-scan Poste-B, ou d'ouvrir une session SSH contre Poste-C,
+    se fait dropper par le hook ingress de Poste-B et Poste-C
+    respectivement — alors même que rien sur la fabric LAN
+    n'empêche le paquet d'arriver. Le firewall traditionnel le
+    laisserait passer.
+  * **SSH est whitelisté depuis le bastion uniquement.** La
+    baseline `sshd-restrict` de chaque poste autorise l'ingress
+    sur le port 22 depuis `10.0.0.42/32` et drop tout le reste,
+    donc le jump host corporate fonctionne toujours pour IR
+    pendant qu'un pair compromis ne peut pas.
+  * **L'egress est par-application.** Firefox sur Poste-A est
+    autorisé à joindre `corporate.com:443` (l'app web corp) mais
+    bloqué de `1.1.1.1` (contournerait le DNS corp) et de
+    `*.fbcdn.net` (politique acceptable-use). `apt` qui tourne
+    dans `system.slice` est autorisé à joindre le repo corp sur
+    le même port, parce que la policy keys sur le cgroup, pas
+    sur l'IP. Deux processus sur le même poste, vers la même
+    passerelle, reçoivent des verdicts différents.
+
 ### Gestion centralisée via Nix, déployée à grande échelle
 
 L'intérêt de livrer ce projet sous forme de module NixOS + flake est
