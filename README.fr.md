@@ -89,14 +89,10 @@ A2 -. "host: re-resolve" .-> E4
 O1 -. "_bulk HTTPS" .-> E5
 O1 -. "RFC 5425 TLS" .-> E6
 
-classDef kernel fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
-classDef agent  fill:#D1FAE5,stroke:#065F46,stroke-width:2px
-classDef opt    fill:#EDE9FE,stroke:#5B21B6,stroke-width:2px
-classDef ext    fill:#FEF3C7,stroke:#92400E,stroke-width:2px
-class KER kernel
-class AG  agent
-class OPT opt
-class EXT ext
+style KER fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
+style AG fill:#D1FAE5,stroke:#065F46,stroke-width:2px
+style OPT fill:#EDE9FE,stroke:#5B21B6,stroke-width:2px
+style EXT fill:#FEF3C7,stroke:#92400E,stroke-width:2px
 ```
 
 > **Frontières de confiance** — bordures pleines = processus /

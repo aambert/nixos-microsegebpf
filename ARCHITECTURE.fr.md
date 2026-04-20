@@ -80,10 +80,8 @@ KE_NOTE(["attache a la racine /sys/fs/cgroup"])
 HE --- KE_NOTE
 HI --- KE_NOTE
 
-classDef us fill:#D1FAE5,stroke:#065F46,stroke-width:2px
-classDef ke fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
-class US us
-class KE ke
+style US fill:#D1FAE5,stroke:#065F46,stroke-width:2px
+style KE fill:#DBEAFE,stroke:#1E3A8A,stroke-width:2px
 ```
 
 Deux points d'attache (egress + ingress) sur la racine cgroupv2
