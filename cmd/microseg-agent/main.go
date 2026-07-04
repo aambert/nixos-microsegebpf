@@ -259,8 +259,11 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	hostname, _ := os.Hostname()
+	// Resolve Docker cgroup scopes (docker-<id>.scope) to friendly container
+	// names so Hubble shows "docker/hubble-ui" instead of "docker-<hash>".
+	dockerNames := observer.NewDockerNames()
 	idfn := func(cgid uint64) (uint32, []string, string) {
-		unit := cache.lookup(cgid)
+		unit := dockerNames.Resolve(cache.lookup(cgid))
 		return observer.CgroupIdentity(cgid), observer.FormatLabels(unit, cgid), unit
 	}
 
