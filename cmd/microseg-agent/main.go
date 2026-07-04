@@ -101,6 +101,7 @@ func main() {
 		hubbleTlsRequireClient bool
 		tlsPortsRaw      string
 		blockQuic        bool
+		allowSampleRate  uint
 	)
 	flag.BoolVar(&jsonLog, "json", true, "emit flow events as JSON on stdout")
 	flag.BoolVar(&emitAllow, "emit-allow", true, "emit ringbuf events even for ALLOW verdicts")
@@ -118,6 +119,7 @@ func main() {
 	flag.BoolVar(&hubbleTlsRequireClient, "hubble-tls-require-client", false, "require + verify a valid client certificate (mTLS); ignored unless -hubble-tls-client-ca is also set")
 	flag.StringVar(&tlsPortsRaw, "tls-ports", "443,8443", "comma-separated destination ports treated as TLS-bearing for SNI/ALPN peeking and QUIC blocking (max 8)")
 	flag.BoolVar(&blockQuic, "block-quic", false, "drop UDP egress to any -tls-ports — forces QUIC clients to fall back to TCP/TLS where SNI matching works")
+	flag.UintVar(&allowSampleRate, "allow-sample-rate", 1, "in-kernel ALLOW-event sampling: emit only 1 in N allowed flows to the ring buffer (1 = emit all; DROP/AUDIT always 100%)")
 	flag.Parse()
 
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -146,6 +148,7 @@ func main() {
 		EmitAllowEvents:       boolToU8(emitAllow),
 		BlockQuic:             boolToU8(blockQuic),
 		NumTlsPorts:           uint8(len(tlsPorts)),
+		SampleRate:            uint32(allowSampleRate),
 	}
 	for i, p := range tlsPorts {
 		cfg.TlsPorts[i] = p
@@ -162,6 +165,7 @@ func main() {
 		"default_egress", defaultEgress,
 		"default_ingress", defaultIngrs,
 		"emit_allow", emitAllow,
+		"allow_sample_rate", allowSampleRate,
 	)
 
 	cache := &unitCache{units: map[uint64]string{}}
@@ -302,6 +306,29 @@ func main() {
 	log.Info("shutdown")
 }
 
+// hubbleQuiet drops intra-host loopback ALLOW flows from the Hubble stream so
+// the live UI stays readable (vLLM engine cores + local IPC dominate otherwise).
+var hubbleQuiet = os.Getenv("MICROSEG_HUBBLE_QUIET") != "0"
+
+// intraHost reports whether the flow's source and destination IPs are identical
+// (self / loopback traffic), i.e. Hubble noise not worth streaming.
+func intraHost(raw observer.RawEvent) bool {
+	n := 4
+	if raw.Family == 6 {
+		n = 16
+	}
+	return bytes.Equal(raw.SrcIP[:n], raw.DstIP[:n])
+}
+
+// adminSSH reports whether the flow is SSH traffic (either endpoint on port
+// 22). Interactive admin SSH sessions generate a torrent of ALLOW flows that
+// drown the live Hubble stream; we hide those from the UI while still logging
+// them to JSON/VictoriaLogs. Ports in RawEvent are network byte order, so
+// swap16 before comparing against the host-order well-known port 22.
+func adminSSH(raw observer.RawEvent) bool {
+	return swap16(raw.SrcPort) == 22 || swap16(raw.DstPort) == 22
+}
+
 func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 	srv *observer.Server, hostname string, idfn observer.IdentityFn,
 	names observer.NameFn, cache *unitCache) {
@@ -322,8 +349,14 @@ func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 			continue
 		}
 
-		// Publish to Hubble observer first — UI is the primary consumer.
-		srv.Publish(observer.ToFlow(raw, hostname, idfn, names))
+		// Publish to Hubble observer — but skip readability noise from the
+		// live stream: intra-host loopback ALLOW flows (vLLM engine cores,
+		// local IPC) and admin SSH ALLOW flows (interactive sessions flood
+		// port 22). The JSON stream below still carries everything for
+		// VictoriaLogs. Disable with MICROSEG_HUBBLE_QUIET=0.
+		if !(hubbleQuiet && raw.Verdict == 0 && (intraHost(raw) || adminSSH(raw))) {
+			srv.Publish(observer.ToFlow(raw, hostname, idfn, names))
+		}
 
 		if !jsonOut {
 			continue
