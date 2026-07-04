@@ -173,6 +173,13 @@ struct default_cfg {
     // `block_quic` is set, UDP egress to the same ports is dropped
     // outright. Replaces the previous hard-coded 443/8443 check.
     __u16 tls_ports[MAX_TLS_PORTS];
+    // In-kernel ALLOW-event sampling. When > 1, only 1 in `sample_rate`
+    // V_ALLOW events is emitted to the ring buffer (probabilistic, via
+    // bpf_get_prandom_u32). 0 or 1 means emit every ALLOW (legacy
+    // behaviour). DROP and AUDIT (V_LOG) events are NEVER sampled — they
+    // are always emitted at 100%. Cuts Hubble/JSON volume for chatty
+    // allowed flows without losing any security-relevant signal.
+    __u32 sample_rate;
 };
 
 struct {
@@ -662,6 +669,14 @@ static __always_inline void emit_event(__u64 cgid,
                                        struct default_cfg *cfg)
 {
     if (verdict == V_ALLOW && cfg && !cfg->emit_allow_events)
+        return;
+
+    // In-kernel ALLOW sampling: keep only 1 in `sample_rate` allowed
+    // flows so the observability stream stays readable under chatty
+    // local traffic. DROP / AUDIT (V_LOG) are never sampled — every one
+    // of them still reaches userspace. sample_rate 0/1 = emit all.
+    if (verdict == V_ALLOW && cfg && cfg->sample_rate > 1 &&
+        (bpf_get_prandom_u32() % cfg->sample_rate) != 0)
         return;
 
     struct flow_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);

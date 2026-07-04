@@ -28,6 +28,7 @@ type MicrosegDefaultCfg struct {
 	NumTlsPorts           uint8
 	Pad                   [3]uint8
 	TlsPorts              [8]uint16
+	SampleRate            uint32
 }
 
 type MicrosegDnsNameBuf struct {
