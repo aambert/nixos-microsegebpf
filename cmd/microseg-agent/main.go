@@ -273,6 +273,27 @@ func main() {
 
 	go drainEvents(l.Events(), jsonLog, log, srv, hostname, idfn, nameResolver.Names, cache)
 
+	// Periodically surface the datapath's lost-event counter. A non-zero
+	// (and especially rising) value means the ringbuf overflowed and flow
+	// events were silently dropped — an observability gap, not a quiet host.
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		var last uint64
+		for range t.C {
+			total, err := l.DroppedEvents()
+			if err != nil {
+				log.Warn("read dropped-event counter", "err", err)
+				continue
+			}
+			if total != last {
+				log.Warn("datapath dropped flow events (ringbuf full)",
+					"total", total, "since_last", total-last)
+				last = total
+			}
+		}
+	}()
+
 	<-stop
 	if stopSync != nil {
 		close(stopSync)
