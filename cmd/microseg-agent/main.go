@@ -264,7 +264,11 @@ func main() {
 		return observer.CgroupIdentity(cgid), observer.FormatLabels(unit, cgid), unit
 	}
 
-	go drainEvents(l.Events(), jsonLog, log, srv, hostname, idfn, cache)
+	// Reverse-DNS resolver for flow endpoint hostnames (cached, non-blocking),
+	// reusing the same TTL as the FQDN policy cache.
+	nameResolver := observer.NewNameResolver(dnsCacheTTL)
+
+	go drainEvents(l.Events(), jsonLog, log, srv, hostname, idfn, nameResolver.Names, cache)
 
 	<-stop
 	if stopSync != nil {
@@ -276,7 +280,7 @@ func main() {
 
 func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 	srv *observer.Server, hostname string, idfn observer.IdentityFn,
-	cache *unitCache) {
+	names observer.NameFn, cache *unitCache) {
 	enc := json.NewEncoder(os.Stdout)
 	for {
 		rec, err := r.Read()
@@ -295,7 +299,7 @@ func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 		}
 
 		// Publish to Hubble observer first — UI is the primary consumer.
-		srv.Publish(observer.ToFlow(raw, hostname, idfn))
+		srv.Publish(observer.ToFlow(raw, hostname, idfn, names))
 
 		if !jsonOut {
 			continue

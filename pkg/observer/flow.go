@@ -35,11 +35,14 @@ type RawEvent struct {
 
 type IdentityFn func(cgroupID uint64) (id uint32, labels []string, unit string)
 
-func ToFlow(e RawEvent, hostname string, idfn IdentityFn) *flowpb.Flow {
+func ToFlow(e RawEvent, hostname string, idfn IdentityFn, names NameFn) *flowpb.Flow {
 	srcIP, dstIP := ipString(e.SrcIP[:], e.Family), ipString(e.DstIP[:], e.Family)
 	srcPort := uint32(beU16(e.SrcPort))
 	dstPort := uint32(beU16(e.DstPort))
 
+	if names == nil {
+		names = func(string) []string { return nil }
+	}
 	id, labels, unit := idfn(e.CgroupID)
 
 	localEP := &flowpb.Endpoint{
@@ -67,6 +70,17 @@ func ToFlow(e RawEvent, hostname string, idfn IdentityFn) *flowpb.Flow {
 		trafDir = flowpb.TrafficDirection_INGRESS
 	}
 
+	// Reverse-DNS the remote peer so the world endpoint carries a hostname
+	// (Hubble names the node by k8s:app; SourceNames/DestinationNames drive
+	// the DNS column). Non-blocking: a miss returns nil and resolves async.
+	peerIP := dstIP
+	if e.Direction == 1 {
+		peerIP = srcIP
+	}
+	if pn := names(peerIP); len(pn) > 0 {
+		worldEP.Labels = append(worldEP.Labels, "k8s:app="+pn[0], "fqdn:"+pn[0])
+	}
+
 	verdict := flowpb.Verdict_FORWARDED
 	switch e.Verdict {
 	case 1:
@@ -90,6 +104,8 @@ func ToFlow(e RawEvent, hostname string, idfn IdentityFn) *flowpb.Flow {
 		},
 		Source:           src,
 		Destination:      dst,
+		SourceNames:      names(srcIP),
+		DestinationNames: names(dstIP),
 		TrafficDirection: trafDir,
 		NodeName:         hostname,
 		Type:             flowpb.FlowType_L3_L4,
@@ -151,7 +167,10 @@ func FormatLabels(unit string, cgid uint64) []string {
 		fmt.Sprintf("microseg.cgroup_id=%d", cgid),
 	}
 	if unit != "" {
-		out = append(out, "microseg.unit="+unit)
+		// k8s:app is the label Hubble UI reads to name a service-map node.
+		// Without it, every endpoint shows as "No app name" even though
+		// PodName is set. microseg.unit stays for our own filtering.
+		out = append(out, "microseg.unit="+unit, "k8s:app="+unit)
 	}
 	return out
 }
