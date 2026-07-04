@@ -49,6 +49,18 @@ enum direction {
     D_INGRESS = 1,
 };
 
+// policy_id sentinels for synthetic verdicts (no real policy matched).
+// The 0xFFFFFFFx range is reserved for these; userspace treats them as
+// diagnostic markers, not real policy ids.
+//   ...FE TLS SNI/ALPN drop      ...FD QUIC blanket drop
+//   ...FC IPv6 ext-hdr audit     ...FB IPv4 non-initial fragment audit
+//   ...FA cfg map unreadable (fail-open) audit
+#define PID_TLS_DROP      0xFFFFFFFEu
+#define PID_QUIC_DROP     0xFFFFFFFDu
+#define PID_V6_EXTHDR     0xFFFFFFFCu
+#define PID_V4_FRAG       0xFFFFFFFBu
+#define PID_CFG_NULL      0xFFFFFFFAu
+
 #define POLICY_HEADER_BITS 88   // cgroup_id(64) + peer_port(16) + protocol(8)
 
 struct lpm_v4_key {
@@ -147,6 +159,18 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 1 << 20);
 } events SEC(".maps");
+
+// Lost-event counter. Single u64 in a PERCPU_ARRAY (no cross-CPU
+// contention on the datapath hot path). Incremented whenever
+// bpf_ringbuf_reserve fails because the ring is full, so userspace can
+// tell "quiet" apart from "overflowing and silently dropping flows".
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, __u32);
+    __type(value, __u64);
+    __uint(max_entries, 1);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+} dropped_events SEC(".maps");
 
 // TLS-aware deny lists.
 //
@@ -487,8 +511,15 @@ static __always_inline void emit_event(__u64 cgid,
         return;
 
     struct flow_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
-    if (!e)
+    if (!e) {
+        // Ring full: the flow event is lost. Bump the per-CPU lost
+        // counter so userspace can surface silent observability gaps.
+        __u32 zero = 0;
+        __u64 *lost = bpf_map_lookup_elem(&dropped_events, &zero);
+        if (lost)
+            __sync_fetch_and_add(lost, 1);
         return;
+    }
 
     __builtin_memset(e, 0, sizeof(*e));
     e->ts_ns     = bpf_ktime_get_ns();
@@ -520,6 +551,32 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
     if (ip->ihl < 5) return SKB_PASS;
     if (ip->protocol != IPPROTO_TCP && ip->protocol != IPPROTO_UDP)
         return SKB_PASS;
+
+    // Non-initial IPv4 fragment (fragment offset != 0): the L4 header
+    // lives only in the first fragment, so ports here would be garbage.
+    // Previously such packets fell through and could PASS unexamined —
+    // a classic policy-evasion vector. We can't do a port/IP policy
+    // lookup without the L4 header, so we emit an AUDIT event and apply
+    // the configured default verdict instead of a silent PASS.
+    //
+    // Limitation: we do NOT reassemble fragments, so a fragmented flow
+    // is judged only by default_verdict, never by a specific rule. The
+    // initial fragment (offset 0) still carries the L4 header and is
+    // matched normally below.
+    if (bpf_ntohs(ip->frag_off) & 0x1FFF) {
+        __u64 fcgid = bpf_skb_cgroup_id(skb);
+        struct default_cfg *fcfg = get_cfg();
+        __u8 fdef = fcfg
+            ? ((dir == D_EGRESS) ? fcfg->default_egress_verdict
+                                 : fcfg->default_ingress_verdict)
+            : V_ALLOW;
+        __u8 fsrc[4], fdst[4];
+        __builtin_memcpy(fsrc, &ip->saddr, 4);
+        __builtin_memcpy(fdst, &ip->daddr, 4);
+        emit_event(fcgid, 4, fsrc, fdst, 0, 0, ip->protocol, dir,
+                   V_LOG, PID_V4_FRAG, fcfg);
+        return (fdef == V_DROP) ? SKB_DROP : SKB_PASS;
+    }
 
     void *l4 = (void *)ip + (ip->ihl * 4);
     __u16 sport = 0, dport = 0;
@@ -565,7 +622,11 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
         verdict = (dir == D_EGRESS) ? cfg->default_egress_verdict
                                     : cfg->default_ingress_verdict;
     } else {
-        verdict = V_ALLOW;
+        // cfg map unreadable. Stay fail-open (V_LOG → SKB_PASS below, so
+        // we never cut the host off) but mark the event as AUDIT with a
+        // sentinel so an operator notices the config map went missing.
+        verdict = V_LOG;
+        policy_id = PID_CFG_NULL;
     }
 
     // TLS peek (TCP) and QUIC blanket-drop (UDP) — both gated by the
@@ -580,14 +641,14 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
                     __u8 tls_v = tls_check(skb, payload_off, total - payload_off);
                     if (tls_v == V_DROP) {
                         verdict = V_DROP;
-                        if (policy_id == 0) policy_id = 0xFFFFFFFE; // TLS sentinel
+                        if (policy_id == 0) policy_id = PID_TLS_DROP;
                     }
                 }
             } else if (ip->protocol == IPPROTO_UDP && cfg && cfg->block_quic) {
                 // UDP to a TLS port + block_quic = treat as QUIC and drop.
                 // Browsers retry on TCP/TLS, where SNI matching works.
                 verdict = V_DROP;
-                if (policy_id == 0) policy_id = 0xFFFFFFFD; // QUIC sentinel
+                if (policy_id == 0) policy_id = PID_QUIC_DROP;
             }
         }
     }
@@ -608,8 +669,32 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
 
     struct ipv6hdr *ip6 = data;
     if ((void *)(ip6 + 1) > data_end) return SKB_PASS;
-    if (ip6->nexthdr != IPPROTO_TCP && ip6->nexthdr != IPPROTO_UDP)
-        return SKB_PASS;
+    // nexthdr is not TCP/UDP: either an IPv6 extension header (hop-by-hop,
+    // routing, fragment, dest-opts, ...) or an unexpected upper protocol.
+    // We do NOT walk the extension-header chain, so we can't reach the L4
+    // header to run a real policy lookup. Previously this returned a
+    // silent PASS — a total evasion (any attacker-inserted ext header
+    // bypassed the datapath). Now we emit an AUDIT event and fall back to
+    // the configured default verdict.
+    //
+    // Limitation: because the ext-hdr chain is not parsed, such packets
+    // are judged only by default_verdict, never by a specific per-port /
+    // per-IP rule. A crafted ext header can therefore still evade a
+    // *specific* allow/deny entry, but it no longer bypasses the default.
+    if (ip6->nexthdr != IPPROTO_TCP && ip6->nexthdr != IPPROTO_UDP) {
+        __u64 xcgid = bpf_skb_cgroup_id(skb);
+        struct default_cfg *xcfg = get_cfg();
+        __u8 xdef = xcfg
+            ? ((dir == D_EGRESS) ? xcfg->default_egress_verdict
+                                 : xcfg->default_ingress_verdict)
+            : V_ALLOW;
+        __u8 xsrc[16], xdst[16];
+        __builtin_memcpy(xsrc, &ip6->saddr, 16);
+        __builtin_memcpy(xdst, &ip6->daddr, 16);
+        emit_event(xcgid, 6, xsrc, xdst, 0, 0, ip6->nexthdr, dir,
+                   V_LOG, PID_V6_EXTHDR, xcfg);
+        return (xdef == V_DROP) ? SKB_DROP : SKB_PASS;
+    }
 
     void *l4 = (void *)(ip6 + 1);
     __u16 sport = 0, dport = 0;
@@ -653,7 +738,10 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
         verdict = (dir == D_EGRESS) ? cfg->default_egress_verdict
                                     : cfg->default_ingress_verdict;
     } else {
-        verdict = V_ALLOW;
+        // cfg map unreadable: fail-open (V_LOG → SKB_PASS) but mark the
+        // event AUDIT with a sentinel so the missing config surfaces.
+        verdict = V_LOG;
+        policy_id = PID_CFG_NULL;
     }
 
     if (verdict != V_DROP && dir == D_EGRESS) {
@@ -666,12 +754,12 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
                     __u8 tls_v = tls_check(skb, payload_off, total - payload_off);
                     if (tls_v == V_DROP) {
                         verdict = V_DROP;
-                        if (policy_id == 0) policy_id = 0xFFFFFFFE;
+                        if (policy_id == 0) policy_id = PID_TLS_DROP;
                     }
                 }
             } else if (ip6->nexthdr == IPPROTO_UDP && cfg && cfg->block_quic) {
                 verdict = V_DROP;
-                if (policy_id == 0) policy_id = 0xFFFFFFFD;
+                if (policy_id == 0) policy_id = PID_QUIC_DROP;
             }
         }
     }

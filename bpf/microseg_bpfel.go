@@ -121,15 +121,16 @@ type MicrosegProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type MicrosegMapSpecs struct {
-	EgressV4    *ebpf.MapSpec `ebpf:"egress_v4"`
-	EgressV6    *ebpf.MapSpec `ebpf:"egress_v6"`
-	Events      *ebpf.MapSpec `ebpf:"events"`
-	IngressV4   *ebpf.MapSpec `ebpf:"ingress_v4"`
-	IngressV6   *ebpf.MapSpec `ebpf:"ingress_v6"`
-	MicrosegCfg *ebpf.MapSpec `ebpf:"microseg_cfg"`
-	SniScratch  *ebpf.MapSpec `ebpf:"sni_scratch"`
-	TlsAlpnDeny *ebpf.MapSpec `ebpf:"tls_alpn_deny"`
-	TlsSniLpm   *ebpf.MapSpec `ebpf:"tls_sni_lpm"`
+	DroppedEvents *ebpf.MapSpec `ebpf:"dropped_events"`
+	EgressV4      *ebpf.MapSpec `ebpf:"egress_v4"`
+	EgressV6      *ebpf.MapSpec `ebpf:"egress_v6"`
+	Events        *ebpf.MapSpec `ebpf:"events"`
+	IngressV4     *ebpf.MapSpec `ebpf:"ingress_v4"`
+	IngressV6     *ebpf.MapSpec `ebpf:"ingress_v6"`
+	MicrosegCfg   *ebpf.MapSpec `ebpf:"microseg_cfg"`
+	SniScratch    *ebpf.MapSpec `ebpf:"sni_scratch"`
+	TlsAlpnDeny   *ebpf.MapSpec `ebpf:"tls_alpn_deny"`
+	TlsSniLpm     *ebpf.MapSpec `ebpf:"tls_sni_lpm"`
 }
 
 // MicrosegVariableSpecs contains global variables before they are loaded into the kernel.
@@ -162,19 +163,21 @@ func (o *MicrosegObjects) Close() error {
 //
 // It can be passed to LoadMicrosegObjects or ebpf.CollectionSpec.LoadAndAssign.
 type MicrosegMaps struct {
-	EgressV4    *ebpf.Map `ebpf:"egress_v4"`
-	EgressV6    *ebpf.Map `ebpf:"egress_v6"`
-	Events      *ebpf.Map `ebpf:"events"`
-	IngressV4   *ebpf.Map `ebpf:"ingress_v4"`
-	IngressV6   *ebpf.Map `ebpf:"ingress_v6"`
-	MicrosegCfg *ebpf.Map `ebpf:"microseg_cfg"`
-	SniScratch  *ebpf.Map `ebpf:"sni_scratch"`
-	TlsAlpnDeny *ebpf.Map `ebpf:"tls_alpn_deny"`
-	TlsSniLpm   *ebpf.Map `ebpf:"tls_sni_lpm"`
+	DroppedEvents *ebpf.Map `ebpf:"dropped_events"`
+	EgressV4      *ebpf.Map `ebpf:"egress_v4"`
+	EgressV6      *ebpf.Map `ebpf:"egress_v6"`
+	Events        *ebpf.Map `ebpf:"events"`
+	IngressV4     *ebpf.Map `ebpf:"ingress_v4"`
+	IngressV6     *ebpf.Map `ebpf:"ingress_v6"`
+	MicrosegCfg   *ebpf.Map `ebpf:"microseg_cfg"`
+	SniScratch    *ebpf.Map `ebpf:"sni_scratch"`
+	TlsAlpnDeny   *ebpf.Map `ebpf:"tls_alpn_deny"`
+	TlsSniLpm     *ebpf.Map `ebpf:"tls_sni_lpm"`
 }
 
 func (m *MicrosegMaps) Close() error {
 	return _MicrosegClose(
+		m.DroppedEvents,
 		m.EgressV4,
 		m.EgressV6,
 		m.Events,

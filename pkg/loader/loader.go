@@ -136,6 +136,22 @@ func (l *Loader) ConfigMap() *ebpf.Map      { return l.objs.MicrosegCfg }
 func (l *Loader) TlsSniLpmMap() *ebpf.Map   { return l.objs.TlsSniLpm }
 func (l *Loader) TlsAlpnDenyMap() *ebpf.Map { return l.objs.TlsAlpnDeny }
 
+// DroppedEvents returns the total number of flow events the datapath had
+// to drop because the ringbuf was full, summed across every CPU. A rising
+// value means the userspace consumer can't keep up and observability has
+// silent gaps.
+func (l *Loader) DroppedEvents() (uint64, error) {
+	var perCPU []uint64
+	if err := l.objs.DroppedEvents.Lookup(uint32(0), &perCPU); err != nil {
+		return 0, err
+	}
+	var total uint64
+	for _, v := range perCPU {
+		total += v
+	}
+	return total, nil
+}
+
 // Close detaches programs, closes maps, and removes pins.
 func (l *Loader) Close() error {
 	var errs []error
