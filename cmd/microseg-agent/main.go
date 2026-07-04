@@ -302,6 +302,20 @@ func main() {
 	log.Info("shutdown")
 }
 
+// hubbleQuiet drops intra-host loopback ALLOW flows from the Hubble stream so
+// the live UI stays readable (vLLM engine cores + local IPC dominate otherwise).
+var hubbleQuiet = os.Getenv("MICROSEG_HUBBLE_QUIET") != "0"
+
+// intraHost reports whether the flow's source and destination IPs are identical
+// (self / loopback traffic), i.e. Hubble noise not worth streaming.
+func intraHost(raw observer.RawEvent) bool {
+	n := 4
+	if raw.Family == 6 {
+		n = 16
+	}
+	return bytes.Equal(raw.SrcIP[:n], raw.DstIP[:n])
+}
+
 func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 	srv *observer.Server, hostname string, idfn observer.IdentityFn,
 	names observer.NameFn, cache *unitCache) {
@@ -322,8 +336,13 @@ func drainEvents(r *ringbuf.Reader, jsonOut bool, log *slog.Logger,
 			continue
 		}
 
-		// Publish to Hubble observer first — UI is the primary consumer.
-		srv.Publish(observer.ToFlow(raw, hostname, idfn, names))
+		// Publish to Hubble observer — but skip intra-host loopback ALLOW noise
+		// (vLLM engine cores, local IPC) so the live flow list stays readable.
+		// The JSON stream below still carries everything for VictoriaLogs.
+		// Disable with MICROSEG_HUBBLE_QUIET=0.
+		if !(hubbleQuiet && raw.Verdict == 0 && intraHost(raw)) {
+			srv.Publish(observer.ToFlow(raw, hostname, idfn, names))
+		}
 
 		if !jsonOut {
 			continue

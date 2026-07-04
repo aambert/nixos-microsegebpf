@@ -87,15 +87,17 @@ func ToFlow(e RawEvent, hostname string, idfn IdentityFn, names NameFn) *flowpb.
 		trafDir = flowpb.TrafficDirection_INGRESS
 	}
 
-	// Reverse-DNS the remote peer so the world endpoint carries a hostname
-	// (Hubble names the node by k8s:app; SourceNames/DestinationNames drive
-	// the DNS column). Non-blocking: a miss returns nil and resolves async.
+	// Reverse-DNS the remote peer ONLY so the world endpoint carries a hostname.
+	// We must NOT resolve the local side: naming the local IP (e.g. aa.lan) would
+	// override the local app name (sshd.service, docker/…) in Hubble's display.
+	// Non-blocking: a miss returns nil and resolves async.
 	peerIP := dstIP
 	if e.Direction == 1 {
 		peerIP = srcIP
 	}
-	if pn := names(peerIP); len(pn) > 0 {
-		worldEP.Labels = append(worldEP.Labels, "k8s:app="+pn[0], "fqdn:"+pn[0])
+	peerNames := names(peerIP)
+	if len(peerNames) > 0 {
+		worldEP.Labels = append(worldEP.Labels, "k8s:app="+peerNames[0], "fqdn:"+peerNames[0])
 	}
 
 	verdict := flowpb.Verdict_FORWARDED
@@ -121,8 +123,10 @@ func ToFlow(e RawEvent, hostname string, idfn IdentityFn, names NameFn) *flowpb.
 		},
 		Source:           src,
 		Destination:      dst,
-		SourceNames:      names(srcIP),
-		DestinationNames: names(dstIP),
+		// Peer-only DNS names: egress → peer is the destination, ingress → the
+		// source. The local endpoint keeps its app name unshadowed.
+		SourceNames:      dnsIf(e.Direction == 1, peerNames),
+		DestinationNames: dnsIf(e.Direction == 0, peerNames),
 		TrafficDirection: trafDir,
 		NodeName:         hostname,
 		Type:             flowpb.FlowType_L3_L4,
@@ -196,6 +200,15 @@ func ipString(b []byte, family uint8) string {
 }
 
 func beU16(v uint16) uint16 { return (v&0xff)<<8 | (v&0xff00)>>8 }
+
+// dnsIf returns names when cond is true, else nil — used to attach DNS names to
+// the world side only (never the local endpoint, whose app name must show).
+func dnsIf(cond bool, names []string) []string {
+	if cond {
+		return names
+	}
+	return nil
+}
 
 func localPodName(unit string, cgid uint64) string {
 	if unit != "" {
