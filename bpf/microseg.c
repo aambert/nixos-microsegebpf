@@ -49,6 +49,29 @@ enum direction {
     D_INGRESS = 1,
 };
 
+// Detailed drop / audit reason surfaced in flow_event.drop_reason. Lets
+// userspace map a verdict to a specific Hubble DropReason instead of the
+// single collapsed POLICY_DENIED. 0 = not dropped (or allow/audit noise).
+//   1 l3l4_policy : matched an LPM (cgroup,port,proto,ip) drop rule
+//   2 sni_deny    : ClientHello SNI hit tls_sni_lpm
+//   3 alpn_deny   : ClientHello ALPN hit tls_alpn_deny
+//   4 default_deny: no rule matched, default_*_verdict = drop
+//   5 audit       : synthetic V_LOG event (frag / ext-hdr / cfg-null)
+enum drop_reason {
+    DR_NONE         = 0,
+    DR_L3L4_POLICY  = 1,
+    DR_SNI_DENY     = 2,
+    DR_ALPN_DENY    = 3,
+    DR_DEFAULT_DENY = 4,
+    DR_AUDIT        = 5,
+};
+
+// DNS well-known port and QNAME cap. We parse the QUESTION name of an
+// egress DNS request (UDP/:53) so the Hubble L7 column shows what was
+// looked up — purely observational, no verdict impact.
+#define DNS_PORT          53
+#define MAX_DNS_NAME      64   // bytes copied into flow_event.l7_dns_name
+
 // policy_id sentinels for synthetic verdicts (no real policy matched).
 // The 0xFFFFFFFx range is reserved for these; userspace treats them as
 // diagnostic markers, not real policy ids.
@@ -97,6 +120,11 @@ struct flow_event {
     __u32 policy_id;
     __u8  src_ip[16];   // big enough for v6; v4 occupies first 4
     __u8  dst_ip[16];
+    __u8  drop_reason;  // enum drop_reason — detailed verdict cause
+    // DNS QUESTION name for egress UDP/:53 requests (NUL-terminated,
+    // lowercased, dot-separated). Empty for every non-DNS flow. Kept at
+    // the tail so the fixed-size L3/L4 prefix stays wire-compatible.
+    __u8  l7_dns_name[MAX_DNS_NAME];
 };
 
 #define POLICY_MAP(name) \
@@ -191,12 +219,35 @@ struct {
 //                   are short, fixed-vocabulary (h2, http/1.1, h3,
 //                   imap, smtp, ...) and never wildcarded, so the
 //                   cheaper hash lookup wins.
-#define MAX_SNI_NAME_BYTES 256
+// LPM_TRIE keys are capped by the kernel at key_size <= 260 (a 4-byte
+// prefix_len header + <=256 bytes of data), and the in-kernel parser
+// bounds the reversed-name write with a bitwise mask, which requires a
+// power-of-two buffer. With a leading 8-byte cgroup_id now sharing the
+// key, 128 is the largest power of two that keeps the write mask valid
+// (key_size = 4 + 8 + 128 = 140). 128 bytes comfortably covers real SNI
+// hostnames (domain names, almost always < 64 bytes).
+#define MAX_SNI_NAME_BYTES 128
+
+// cgroup_id is prepended to both L7 deny keys so a policy can scope an
+// SNI/ALPN denial to one workload (cgroup) instead of the whole host.
+// A cgroup_id of 0 is the GLOBAL entry: the datapath first looks up the
+// packet's own cgroup_id, then falls back to 0, so host-wide rules and
+// per-workload rules coexist. Mirrors POLICY_HEADER_BITS scoping on the
+// L3/L4 maps.
+#define SNI_CGROUP_BITS 64      // sizeof(cgroup_id) * 8
 
 struct sni_lpm_key {
     __u32 prefix_len;            // bits, NOT bytes (LPM convention)
+    __u64 cgroup_id;            // 0 = global, else per-workload scope
     __u8  name[MAX_SNI_NAME_BYTES];
 } __attribute__((packed));
+
+// tls_alpn_deny key: (cgroup_id, FNV-1a hash of the ALPN id). Same
+// per-cgroup + global-fallback scheme as the SNI trie above.
+struct alpn_key {
+    __u64 cgroup_id;
+    __u64 hash;
+};
 
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
@@ -209,7 +260,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, __u64);
+    __type(key, struct alpn_key);
     __type(value, struct policy_value);
     __uint(max_entries, 1024);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
@@ -226,6 +277,20 @@ struct {
     __type(value, struct sni_lpm_key);
     __uint(max_entries, 1);
 } sni_scratch SEC(".maps");
+
+// Per-CPU scratch for the parsed DNS QNAME. Same rationale as
+// sni_scratch: a 64-byte buffer plus the parser frame would crowd the
+// 512-byte BPF stack, so we borrow a per-thread map value instead.
+struct dns_name_buf {
+    __u8 name[MAX_DNS_NAME];
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, __u32);
+    __type(value, struct dns_name_buf);
+    __uint(max_entries, 1);
+} dns_scratch SEC(".maps");
 
 const struct flow_event *unused_flow_event __attribute__((unused));
 const struct lpm_v4_key *unused_v4 __attribute__((unused));
@@ -356,11 +421,12 @@ static long sni_load_byte(__u32 i, struct sni_load_ctx *ctx)
     // clients already send lowercase, but normalising in-kernel makes
     // userspace policy authoring simpler.
     if (b >= 'A' && b <= 'Z') b += 32;
-    // Reverse: position from the end of the input. The
-    // unconditional mask is what the verifier accepts as a proof
-    // that `j` fits the 256-byte buffer — caller already enforces
-    // src_len <= MAX_SNI_NAME_BYTES so the mask is semantically a
-    // no-op for valid inputs, but it's load-bearing for the verifier.
+    // Reverse: position from the end of the input. The unconditional
+    // mask is what the verifier accepts as a proof that `j` fits the
+    // MAX_SNI_NAME_BYTES buffer (power of two) — an explicit `if (j >=
+    // N)` does NOT propagate the bound to the pointer offset and the
+    // verifier rejects the write. Caller enforces src_len <=
+    // MAX_SNI_NAME_BYTES so the mask is a no-op for valid inputs.
     __u32 j = (ctx->src_len - 1 - i) & (MAX_SNI_NAME_BYTES - 1);
     ctx->key->name[j] = b;
     return 0;
@@ -370,7 +436,8 @@ static long sni_load_byte(__u32 i, struct sni_load_ctx *ctx)
 // skb matches a deny entry in tls_sni_lpm. False on any failure
 // (read error, oversized name, no match).
 static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
-                                          __u32 off, __u16 len)
+                                          __u32 off, __u16 len,
+                                          __u64 cgroup_id)
 {
     if (len == 0 || len > MAX_SNI_NAME_BYTES) return false;
 
@@ -384,10 +451,10 @@ static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
     //      the match.
     //   2. The lookup's prefix_len must be >= every entry's prefix_len
     //      for that entry to be eligible. Setting it to the full
-    //      MAX_SNI_NAME_BYTES * 8 makes every populated entry
-    //      reachable; the kernel still picks the longest match.
+    //      cgroup_id + MAX_SNI_NAME_BYTES bits makes every populated
+    //      entry reachable; the kernel still picks the longest match.
     __builtin_memset(key, 0, sizeof(*key));
-    key->prefix_len = MAX_SNI_NAME_BYTES * 8;
+    key->prefix_len = SNI_CGROUP_BITS + MAX_SNI_NAME_BYTES * 8;
 
     struct sni_load_ctx ctx = {
         .skb = skb,
@@ -397,16 +464,27 @@ static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
     };
     bpf_loop(MAX_SNI_NAME_BYTES, sni_load_byte, &ctx, 0);
 
+    // Per-cgroup scope first, then the host-wide (cgroup_id == 0) entry.
+    // The cgroup_id occupies the leading 64 bits of the key, so an entry
+    // scoped to cgroup X can only match a lookup carrying cgroup X.
+    key->cgroup_id = cgroup_id;
     struct policy_value *pv = bpf_map_lookup_elem(&tls_sni_lpm, key);
+    if ((!pv || pv->verdict != V_DROP) && cgroup_id != 0) {
+        key->cgroup_id = 0;
+        pv = bpf_map_lookup_elem(&tls_sni_lpm, key);
+    }
     return pv && pv->verdict == V_DROP;
 }
 
-// Per-extension walker context for bpf_loop.
+// Per-extension walker context for bpf_loop. `reason` carries the
+// detailed drop cause back to the caller: 0 = allow, DR_SNI_DENY, or
+// DR_ALPN_DENY (see enum drop_reason).
 struct ext_loop_ctx {
     struct __sk_buff *skb;
     __u32 off;
     __u32 ext_end;
-    __u8  verdict;
+    __u64 cgroup_id;   // scope for the SNI/ALPN deny lookups
+    __u8  reason;
 };
 
 // One iteration: read extension header, dispatch SNI / ALPN / skip.
@@ -424,8 +502,8 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
         if (name_type != 0) return 0;
         __u16 name_len = load_be16(ctx->skb, ext_data + 3);
         if (name_len == 0 || name_len > MAX_SNI_NAME_BYTES) return 0;
-        if (sni_lpm_check(ctx->skb, ext_data + 5, name_len)) {
-            ctx->verdict = V_DROP;
+        if (sni_lpm_check(ctx->skb, ext_data + 5, name_len, ctx->cgroup_id)) {
+            ctx->reason = DR_SNI_DENY;
             return 1;
         }
     } else if (ext_type == TLS_EXT_ALPN) {
@@ -439,9 +517,15 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
             __u8 plen = load_u8(ctx->skb, ap);
             if (plen > 0 && plen <= MAX_TLS_HASH_BYTES) {
                 __u64 h = fnv64a(ctx->skb, ap + 1, plen);
-                struct policy_value *pv = bpf_map_lookup_elem(&tls_alpn_deny, &h);
+                // Per-cgroup scope first, host-wide (cgroup_id 0) fallback.
+                struct alpn_key ak = { .cgroup_id = ctx->cgroup_id, .hash = h };
+                struct policy_value *pv = bpf_map_lookup_elem(&tls_alpn_deny, &ak);
+                if ((!pv || pv->verdict != V_DROP) && ctx->cgroup_id != 0) {
+                    ak.cgroup_id = 0;
+                    pv = bpf_map_lookup_elem(&tls_alpn_deny, &ak);
+                }
                 if (pv && pv->verdict == V_DROP) {
-                    ctx->verdict = V_DROP;
+                    ctx->reason = DR_ALPN_DENY;
                     return 1;
                 }
             }
@@ -450,26 +534,27 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
     return 0;
 }
 
-// Returns V_DROP if the ClientHello at `payload_off` matches a deny
-// entry in either tls_sni_lpm or tls_alpn_deny. Returns V_ALLOW
-// otherwise (including all malformed / non-TLS cases — peeking is a
-// best-effort augmentation, not a primary verdict).
+// Returns the detailed drop reason (DR_SNI_DENY / DR_ALPN_DENY) if the
+// ClientHello at `payload_off` matches a deny entry, or DR_NONE (0)
+// otherwise — including all malformed / non-TLS cases, since peeking is
+// a best-effort augmentation, not a primary verdict.
 static __always_inline __u8 tls_check(struct __sk_buff *skb,
-                                      __u32 payload_off, __u32 payload_len)
+                                      __u32 payload_off, __u32 payload_len,
+                                      __u64 cgroup_id)
 {
     // Need at minimum: TLS record header (5) + handshake header (4) +
     // client_version (2) + random (32) = 43 bytes.
     if (payload_len < 43)
-        return V_ALLOW;
+        return DR_NONE;
 
     __u8 rec[5];
     if (bpf_skb_load_bytes(skb, payload_off, rec, 5) < 0)
-        return V_ALLOW;
-    if (rec[0] != TLS_CONTENT_HANDSHAKE) return V_ALLOW;
-    if (rec[1] != 0x03) return V_ALLOW;          // TLS major version
+        return DR_NONE;
+    if (rec[0] != TLS_CONTENT_HANDSHAKE) return DR_NONE;
+    if (rec[1] != 0x03) return DR_NONE;          // TLS major version
 
     if (load_u8(skb, payload_off + 5) != TLS_HS_CLIENT_HELLO)
-        return V_ALLOW;
+        return DR_NONE;
 
     // Walk the ClientHello to its extensions block. Each variable-length
     // field carries its own length prefix; we trust those length
@@ -493,10 +578,78 @@ static __always_inline __u8 tls_check(struct __sk_buff *skb,
     // Drive the extension walk through bpf_loop so the verifier sees
     // a single iteration callback instead of an unrolled body × N.
     struct ext_loop_ctx ctx = {
-        .skb = skb, .off = off, .ext_end = ext_end, .verdict = V_ALLOW,
+        .skb = skb, .off = off, .ext_end = ext_end,
+        .cgroup_id = cgroup_id, .reason = DR_NONE,
     };
     bpf_loop(MAX_TLS_EXTENSIONS, walk_extension, &ctx, 0);
-    return ctx.verdict;
+    return ctx.reason;
+}
+
+// ============================================================
+// DNS QUESTION-name peeking (egress UDP/:53).
+//
+// We never resolve or block on DNS — we only lift the queried name out
+// of the request so Hubble's L7 column shows "what did this cgroup look
+// up". The QNAME is a run of length-prefixed labels terminated by a
+// zero byte; we flatten it to a dotted, lowercased string. Compression
+// pointers (top two bits set) never appear in a QUESTION, so we stop on
+// them rather than chase the offset.
+// ============================================================
+struct dns_ctx {
+    struct __sk_buff *skb;
+    __u32 base;        // skb offset of the first QNAME length byte
+    __u8 *out;         // -> dns_scratch value (MAX_DNS_NAME bytes)
+    __u32 out_idx;
+    __u32 label_rem;   // bytes left in the current label
+};
+
+// One byte of the wire QNAME per iteration. `i` walks the wire; out_idx
+// walks the flattened output. Returns 1 to stop (name end, read error,
+// compression pointer, or output full).
+static long dns_step(__u32 i, struct dns_ctx *ctx)
+{
+    if (ctx->out_idx >= MAX_DNS_NAME - 1) return 1;
+    __u8 b;
+    if (bpf_skb_load_bytes(ctx->skb, ctx->base + i, &b, 1) < 0) return 1;
+
+    if (ctx->label_rem == 0) {
+        if (b == 0) return 1;              // root label: name complete
+        if (b & 0xC0) return 1;            // compression pointer: bail
+        ctx->label_rem = b;
+        if (ctx->out_idx > 0) {            // label separator
+            ctx->out[ctx->out_idx & (MAX_DNS_NAME - 1)] = '.';
+            ctx->out_idx++;
+        }
+    } else {
+        if (b >= 'A' && b <= 'Z') b += 32; // DNS names are case-insensitive
+        ctx->out[ctx->out_idx & (MAX_DNS_NAME - 1)] = b;
+        ctx->out_idx++;
+        ctx->label_rem--;
+    }
+    return 0;
+}
+
+// parse_dns_qname fills the per-CPU scratch with the flattened QNAME and
+// returns a pointer to it, or NULL if there was nothing to parse. `l4_off`
+// is the skb offset of the UDP header; the DNS payload follows the 8-byte
+// UDP header and the QNAME follows the 12-byte DNS header.
+static __always_inline __u8 *parse_dns_qname(struct __sk_buff *skb, __u32 l4_off)
+{
+    __u32 zero = 0;
+    struct dns_name_buf *buf = bpf_map_lookup_elem(&dns_scratch, &zero);
+    if (!buf) return NULL;
+    __builtin_memset(buf, 0, sizeof(*buf));
+
+    struct dns_ctx ctx = {
+        .skb = skb,
+        .base = l4_off + 8 + 12,   // UDP header + DNS header
+        .out = buf->name,
+        .out_idx = 0,
+        .label_rem = 0,
+    };
+    bpf_loop(MAX_DNS_NAME, dns_step, &ctx, 0);
+    if (ctx.out_idx == 0) return NULL;
+    return buf->name;
 }
 
 static __always_inline void emit_event(__u64 cgid,
@@ -505,6 +658,7 @@ static __always_inline void emit_event(__u64 cgid,
                                        __u16 src_port, __u16 dst_port,
                                        __u8 proto, __u8 dir,
                                        __u8 verdict, __u32 policy_id,
+                                       __u8 drop_reason, __u8 *dns_name,
                                        struct default_cfg *cfg)
 {
     if (verdict == V_ALLOW && cfg && !cfg->emit_allow_events)
@@ -528,14 +682,23 @@ static __always_inline void emit_event(__u64 cgid,
     e->direction = dir;
     e->verdict   = verdict;
     e->protocol  = proto;
-    e->src_port  = src_port;
-    e->dst_port  = dst_port;
-    e->policy_id = policy_id;
+    e->src_port    = src_port;
+    e->dst_port    = dst_port;
+    e->policy_id   = policy_id;
+    e->drop_reason = drop_reason;
 
     int n = (family == 4) ? 4 : 16;
     for (int i = 0; i < 16; i++) {
         e->src_ip[i] = (i < n) ? src_ip[i] : 0;
         e->dst_ip[i] = (i < n) ? dst_ip[i] : 0;
+    }
+
+    // l7_dns_name was zeroed by the memset above; copy the parsed QNAME
+    // only when the caller handed us one (egress DNS request).
+    if (dns_name) {
+        #pragma unroll
+        for (int i = 0; i < MAX_DNS_NAME; i++)
+            e->l7_dns_name[i] = dns_name[i];
     }
 
     bpf_ringbuf_submit(e, 0);
@@ -574,7 +737,7 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
         __builtin_memcpy(fsrc, &ip->saddr, 4);
         __builtin_memcpy(fdst, &ip->daddr, 4);
         emit_event(fcgid, 4, fsrc, fdst, 0, 0, ip->protocol, dir,
-                   V_LOG, PID_V4_FRAG, fcfg);
+                   V_LOG, PID_V4_FRAG, DR_AUDIT, NULL, fcfg);
         return (fdef == V_DROP) ? SKB_DROP : SKB_PASS;
     }
 
@@ -614,19 +777,23 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
     struct default_cfg *cfg = get_cfg();
     __u8 verdict;
     __u32 policy_id = 0;
+    __u8 drop_reason = DR_NONE;
 
     if (pv) {
         verdict = pv->verdict;
         policy_id = pv->policy_id;
+        if (verdict == V_DROP) drop_reason = DR_L3L4_POLICY;
     } else if (cfg) {
         verdict = (dir == D_EGRESS) ? cfg->default_egress_verdict
                                     : cfg->default_ingress_verdict;
+        if (verdict == V_DROP) drop_reason = DR_DEFAULT_DENY;
     } else {
         // cfg map unreadable. Stay fail-open (V_LOG → SKB_PASS below, so
         // we never cut the host off) but mark the event as AUDIT with a
         // sentinel so an operator notices the config map went missing.
         verdict = V_LOG;
         policy_id = PID_CFG_NULL;
+        drop_reason = DR_AUDIT;
     }
 
     // TLS peek (TCP) and QUIC blanket-drop (UDP) — both gated by the
@@ -638,9 +805,10 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
                 __u32 payload_off = (ip->ihl * 4) + (tcp_doff * 4);
                 __u32 total = skb->len;
                 if (total > payload_off) {
-                    __u8 tls_v = tls_check(skb, payload_off, total - payload_off);
-                    if (tls_v == V_DROP) {
+                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off, cgid);
+                    if (tls_r != DR_NONE) {
                         verdict = V_DROP;
+                        drop_reason = tls_r;
                         if (policy_id == 0) policy_id = PID_TLS_DROP;
                     }
                 }
@@ -648,16 +816,26 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
                 // UDP to a TLS port + block_quic = treat as QUIC and drop.
                 // Browsers retry on TCP/TLS, where SNI matching works.
                 verdict = V_DROP;
+                drop_reason = DR_L3L4_POLICY;
                 if (policy_id == 0) policy_id = PID_QUIC_DROP;
             }
         }
+    }
+
+    // L7 DNS peek: lift the QUESTION name out of egress DNS requests so
+    // Hubble's L7 column is populated. Observational only — never alters
+    // the verdict above.
+    __u8 *dns_name = NULL;
+    if (dir == D_EGRESS && ip->protocol == IPPROTO_UDP &&
+        bpf_ntohs(dport) == DNS_PORT) {
+        dns_name = parse_dns_qname(skb, ip->ihl * 4);
     }
 
     __u8 src[4], dst[4];
     __builtin_memcpy(src, &ip->saddr, 4);
     __builtin_memcpy(dst, &ip->daddr, 4);
     emit_event(cgid, 4, src, dst, sport, dport,
-               ip->protocol, dir, verdict, policy_id, cfg);
+               ip->protocol, dir, verdict, policy_id, drop_reason, dns_name, cfg);
 
     return (verdict == V_DROP) ? SKB_DROP : SKB_PASS;
 }
@@ -692,7 +870,7 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
         __builtin_memcpy(xsrc, &ip6->saddr, 16);
         __builtin_memcpy(xdst, &ip6->daddr, 16);
         emit_event(xcgid, 6, xsrc, xdst, 0, 0, ip6->nexthdr, dir,
-                   V_LOG, PID_V6_EXTHDR, xcfg);
+                   V_LOG, PID_V6_EXTHDR, DR_AUDIT, NULL, xcfg);
         return (xdef == V_DROP) ? SKB_DROP : SKB_PASS;
     }
 
@@ -730,18 +908,22 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
     struct default_cfg *cfg = get_cfg();
     __u8 verdict;
     __u32 policy_id = 0;
+    __u8 drop_reason = DR_NONE;
 
     if (pv) {
         verdict = pv->verdict;
         policy_id = pv->policy_id;
+        if (verdict == V_DROP) drop_reason = DR_L3L4_POLICY;
     } else if (cfg) {
         verdict = (dir == D_EGRESS) ? cfg->default_egress_verdict
                                     : cfg->default_ingress_verdict;
+        if (verdict == V_DROP) drop_reason = DR_DEFAULT_DENY;
     } else {
         // cfg map unreadable: fail-open (V_LOG → SKB_PASS) but mark the
         // event AUDIT with a sentinel so the missing config surfaces.
         verdict = V_LOG;
         policy_id = PID_CFG_NULL;
+        drop_reason = DR_AUDIT;
     }
 
     if (verdict != V_DROP && dir == D_EGRESS) {
@@ -751,24 +933,33 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
                 __u32 payload_off = sizeof(struct ipv6hdr) + (tcp_doff * 4);
                 __u32 total = skb->len;
                 if (total > payload_off) {
-                    __u8 tls_v = tls_check(skb, payload_off, total - payload_off);
-                    if (tls_v == V_DROP) {
+                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off, cgid);
+                    if (tls_r != DR_NONE) {
                         verdict = V_DROP;
+                        drop_reason = tls_r;
                         if (policy_id == 0) policy_id = PID_TLS_DROP;
                     }
                 }
             } else if (ip6->nexthdr == IPPROTO_UDP && cfg && cfg->block_quic) {
                 verdict = V_DROP;
+                drop_reason = DR_L3L4_POLICY;
                 if (policy_id == 0) policy_id = PID_QUIC_DROP;
             }
         }
+    }
+
+    // L7 DNS peek (egress UDP/:53) — observational, see handle_v4.
+    __u8 *dns_name = NULL;
+    if (dir == D_EGRESS && ip6->nexthdr == IPPROTO_UDP &&
+        bpf_ntohs(dport) == DNS_PORT) {
+        dns_name = parse_dns_qname(skb, sizeof(struct ipv6hdr));
     }
 
     __u8 src[16], dst[16];
     __builtin_memcpy(src, &ip6->saddr, 16);
     __builtin_memcpy(dst, &ip6->daddr, 16);
     emit_event(cgid, 6, src, dst, sport, dport,
-               ip6->nexthdr, dir, verdict, policy_id, cfg);
+               ip6->nexthdr, dir, verdict, policy_id, drop_reason, dns_name, cfg);
 
     return (verdict == V_DROP) ? SKB_DROP : SKB_PASS;
 }

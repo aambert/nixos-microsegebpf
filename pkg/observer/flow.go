@@ -31,7 +31,24 @@ type RawEvent struct {
 	PolicyID  uint32
 	SrcIP     [16]byte
 	DstIP     [16]byte
+	// DropReason is the detailed cause behind a DROP/AUDIT verdict —
+	// mirrors enum drop_reason in microseg.c. 0 = none.
+	DropReason uint8
+	// L7DnsName is the QUESTION name of an egress DNS request (UDP/:53),
+	// NUL-terminated and lowercased. Empty for every non-DNS flow.
+	L7DnsName [64]byte
 }
+
+// Drop-reason codes — must stay in lockstep with enum drop_reason in
+// bpf/microseg.c.
+const (
+	drNone        = 0
+	drL3L4Policy  = 1
+	drSNIDeny     = 2
+	drALPNDeny    = 3
+	drDefaultDeny = 4
+	drAudit       = 5
+)
 
 type IdentityFn func(cgroupID uint64) (id uint32, labels []string, unit string)
 
@@ -127,10 +144,48 @@ func ToFlow(e RawEvent, hostname string, idfn IdentityFn, names NameFn) *flowpb.
 		}}}
 	}
 
+	// L7 DNS: the datapath lifted the QUESTION name out of an egress DNS
+	// request. Surface it as a Layer7 DNS record so Hubble's L7 column
+	// shows what the workload looked up. Purely observational.
+	if q := cstr(e.L7DnsName[:]); q != "" {
+		f.Type = flowpb.FlowType_L7
+		f.L7 = &flowpb.Layer7{
+			Type:   flowpb.L7FlowType_REQUEST,
+			Record: &flowpb.Layer7_Dns{Dns: &flowpb.DNS{Query: q + "."}},
+		}
+	}
+
+	// Map the datapath's detailed drop_reason to a distinct Hubble
+	// DropReason instead of collapsing every drop to POLICY_DENIED.
 	if verdict == flowpb.Verdict_DROPPED {
-		f.DropReasonDesc = flowpb.DropReason_POLICY_DENIED
+		f.DropReasonDesc = dropReasonDesc(e.DropReason)
+		f.DropReason = uint32(f.DropReasonDesc)
 	}
 	return f
+}
+
+// dropReasonDesc translates the eBPF drop_reason code into the closest
+// Hubble DropReason enum. SNI/ALPN denials use POLICY_DENY (L7 policy)
+// so they read distinctly from the L3/L4 POLICY_DENIED path.
+func dropReasonDesc(code uint8) flowpb.DropReason {
+	switch code {
+	case drSNIDeny, drALPNDeny:
+		return flowpb.DropReason_POLICY_DENY
+	case drL3L4Policy, drDefaultDeny:
+		return flowpb.DropReason_POLICY_DENIED
+	default:
+		return flowpb.DropReason_POLICY_DENIED
+	}
+}
+
+// cstr trims a fixed-size NUL-padded byte buffer to its Go string.
+func cstr(b []byte) string {
+	for i, c := range b {
+		if c == 0 {
+			return string(b[:i])
+		}
+	}
+	return string(b)
 }
 
 func ipString(b []byte, family uint8) string {

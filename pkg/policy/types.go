@@ -44,12 +44,13 @@ type Spec struct {
 	Selector Selector `yaml:"selector"`
 	Egress   []Rule   `yaml:"egress"`
 	Ingress  []Rule   `yaml:"ingress"`
-	// Tls holds peek-only deny lists for TLS handshake metadata. The
-	// agent merges sniDeny / alpnDeny from every policy into two
-	// global BPF maps; per-cgroup scoping is intentionally absent in
-	// the PoC because the in-kernel parser keys the lookup on the
-	// hash alone. The selector at the surrounding policy doc is
-	// documentary in this case.
+	// Tls holds peek-only deny lists for TLS handshake metadata. When
+	// the surrounding policy carries a selector (systemdUnit /
+	// cgroupPath), the sniDeny / alpnDeny entries are scoped to the
+	// matched cgroup(s): the in-kernel parser keys each lookup on
+	// (cgroup_id, name/hash), so a denial applies only to that
+	// workload. A selector-less TLS policy installs GLOBAL entries
+	// (cgroup_id 0) that the datapath falls back to for every cgroup.
 	Tls *TlsSpec `yaml:"tls,omitempty"`
 }
 
