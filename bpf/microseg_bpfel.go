@@ -13,6 +13,12 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type MicrosegAlpnKey struct {
+	_        structs.HostLayout
+	CgroupId uint64
+	Hash     uint64
+}
+
 type MicrosegDefaultCfg struct {
 	_                     structs.HostLayout
 	DefaultEgressVerdict  uint8
@@ -75,7 +81,8 @@ type MicrosegPolicyValue struct {
 type MicrosegSniLpmKey struct {
 	_         structs.HostLayout
 	PrefixLen uint32
-	Name      [256]uint8
+	CgroupId  uint64
+	Name      [128]uint8
 }
 
 // LoadMicroseg returns the embedded CollectionSpec for Microseg.

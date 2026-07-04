@@ -168,26 +168,54 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 	desiredInV6 := entriesToMapV6(inV6)
 
 	// TLS peek deny maps:
-	//   * SNI: LPM trie keyed on reversed hostname, supports wildcards
-	//   * ALPN: HASH on FNV-1a 64-bit (must match bpf/microseg.c::fnv64a)
-	// Per-cgroup scoping is deliberately absent for the PoC — see
-	// TlsSpec for the rationale.
+	//   * SNI: LPM trie keyed on (cgroup_id, reversed hostname), wildcards
+	//   * ALPN: HASH on (cgroup_id, FNV-1a 64-bit) — hash must match
+	//     bpf/microseg.c::fnv64a
+	// Scoping: a TLS policy carrying a selector is keyed with the resolved
+	// cgroup_id(s) of the matched workloads; a selector-less TLS policy
+	// installs GLOBAL entries (cgroup_id 0) the datapath falls back to.
 	desiredSni := map[sniLpmEntry]rawValue{}
-	desiredAlpn := map[uint64]rawValue{}
+	desiredAlpn := map[alpnKey]rawValue{}
 	for i, d := range docs {
 		if d.Spec.Tls == nil {
 			continue
 		}
 		pid := uint32(i + 1)
-		for _, pat := range d.Spec.Tls.SNIDeny {
-			e, err := compileSNIPattern(pat)
-			if err != nil {
-				return fmt.Errorf("policy %q: tls.sniDeny[%q]: %w", d.Metadata.Name, pat, err)
+
+		// Resolve the scope: cgroup_id 0 (global) when the policy targets
+		// the whole host (no selector, or the cgroup root "/"), else the
+		// cgroup_id of every currently-matched workload. Mapping "/" to
+		// the global entry leans on the datapath's cgroup_id-0 fallback,
+		// so one entry covers every current AND future cgroup instead of
+		// enumerating them. If a real selector matches nothing right now,
+		// no entries are installed — they appear on the next Apply once
+		// the unit runs.
+		var scope []uint64
+		sel := d.Spec.Selector
+		if (sel.SystemdUnit == "" && sel.CgroupPath == "") || sel.CgroupPath == "/" {
+			scope = []uint64{0}
+		} else {
+			for _, cg := range selectCgroups(sel, cgs) {
+				scope = append(scope, cg.ID)
 			}
-			desiredSni[e] = rawValue{Verdict: 1, PolicyID: pid}
+			if len(scope) == 0 {
+				s.log.Info("TLS policy without matching cgroup (deferred)",
+					"policy", d.Metadata.Name,
+					"unit", sel.SystemdUnit, "path", sel.CgroupPath)
+			}
 		}
-		for _, a := range d.Spec.Tls.ALPNDeny {
-			desiredAlpn[fnv64a([]byte(a))] = rawValue{Verdict: 1, PolicyID: pid}
+
+		for _, cgid := range scope {
+			for _, pat := range d.Spec.Tls.SNIDeny {
+				e, err := compileSNIPattern(pat, cgid)
+				if err != nil {
+					return fmt.Errorf("policy %q: tls.sniDeny[%q]: %w", d.Metadata.Name, pat, err)
+				}
+				desiredSni[e] = rawValue{Verdict: 1, PolicyID: pid}
+			}
+			for _, a := range d.Spec.Tls.ALPNDeny {
+				desiredAlpn[alpnKey{CgroupID: cgid, Hash: fnv64a([]byte(a))}] = rawValue{Verdict: 1, PolicyID: pid}
+			}
 		}
 	}
 
@@ -221,7 +249,7 @@ func (s *Syncer) Apply(docs []PolicyDoc) error {
 	if stats.sni, derr = applyDelta[sniLpmEntry](s.maps.TlsSniLpm, desiredSni, "tls_sni_lpm"); derr != nil {
 		return derr
 	}
-	if stats.alpn, derr = applyDelta[uint64](s.maps.TlsAlpnDeny, desiredAlpn, "tls_alpn_deny"); derr != nil {
+	if stats.alpn, derr = applyDelta[alpnKey](s.maps.TlsAlpnDeny, desiredAlpn, "tls_alpn_deny"); derr != nil {
 		return derr
 	}
 
@@ -322,32 +350,51 @@ func applyDelta[K comparable](m *ebpf.Map, desired map[K]rawValue, label string)
 	return stats, nil
 }
 
-// sniLpmEntry is the raw (prefix_len, name[256]) shape of a single
-// LPM trie entry. Used as a map key in Apply() so we can dedupe
-// patterns that compile to the same key.
+// sniLpmEntry is the raw (prefix_len, cgroup_id, name[256]) shape of a
+// single LPM trie entry — mirrors struct sni_lpm_key in microseg.c.
+// Used as a map key in Apply() so we can dedupe patterns that compile
+// to the same key. cgroup_id 0 = global; the datapath prepends it to
+// the trie key (SNI_CGROUP_BITS leading bits) for per-workload scope.
 type sniLpmEntry struct {
 	PrefixLen uint32
-	Name      [256]byte
+	CgroupID  uint64
+	Name      [maxSNINameBytes]byte
 }
+
+// maxSNINameBytes mirrors MAX_SNI_NAME_BYTES in microseg.c. The LPM key
+// data (cgroup_id + name) must stay <= 256 bytes AND the in-kernel write
+// mask needs a power-of-two buffer, so the name is capped at 128.
+const maxSNINameBytes = 128
+
+// alpnKey mirrors struct alpn_key in microseg.c: the ALPN deny HASH is
+// keyed on (cgroup_id, FNV-1a hash). cgroup_id 0 = global.
+type alpnKey struct {
+	CgroupID uint64
+	Hash     uint64
+}
+
+// sniCgroupBits mirrors SNI_CGROUP_BITS in microseg.c — the leading
+// cgroup_id bits every SNI trie entry pins exactly.
+const sniCgroupBits = 64
 
 // compileSNIPattern turns a userspace SNI pattern into the BPF LPM
 // key the in-kernel parser will look up. Two flavours:
 //
-//   "example.com"      -> reversed bytes + NUL terminator. The NUL
-//                         prevents a longer reversed lookup string
-//                         from matching this entry (otherwise an
-//                         exact-match for example.com would also
-//                         match mail.example.com).
-//   "*.example.com"    -> reversed bytes (without the leading "*.")
-//                         + dot terminator. The trailing dot ensures
-//                         a label boundary in the original-direction
-//                         hostname, so "evilexample.com" does NOT
-//                         match.
+//	"example.com"      -> reversed bytes + NUL terminator. The NUL
+//	                      prevents a longer reversed lookup string
+//	                      from matching this entry (otherwise an
+//	                      exact-match for example.com would also
+//	                      match mail.example.com).
+//	"*.example.com"    -> reversed bytes (without the leading "*.")
+//	                      + dot terminator. The trailing dot ensures
+//	                      a label boundary in the original-direction
+//	                      hostname, so "evilexample.com" does NOT
+//	                      match.
 //
 // Multi-level wildcards (e.g. "*.*.foo.com") are explicitly rejected
 // because they have no standard meaning in DNS / TLS SNI and the LPM
 // design only models one wildcard label.
-func compileSNIPattern(pat string) (sniLpmEntry, error) {
+func compileSNIPattern(pat string, cgroupID uint64) (sniLpmEntry, error) {
 	pat = strings.ToLower(strings.TrimSpace(pat))
 	if pat == "" {
 		return sniLpmEntry{}, fmt.Errorf("empty pattern")
@@ -371,12 +418,15 @@ func compileSNIPattern(pat string) (sniLpmEntry, error) {
 		// Exact pattern. Append NUL so a longer lookup doesn't match.
 		raw = append([]byte(reverseBytes(pat)), 0)
 	}
-	if len(raw) > 256 {
-		return sniLpmEntry{}, fmt.Errorf("pattern too long after reversal (%d > 256)", len(raw))
+	if len(raw) > maxSNINameBytes {
+		return sniLpmEntry{}, fmt.Errorf("pattern too long after reversal (%d > %d)", len(raw), maxSNINameBytes)
 	}
 
 	var e sniLpmEntry
-	e.PrefixLen = uint32(len(raw)) * 8
+	// The cgroup_id occupies the leading sniCgroupBits bits of the key
+	// and is always matched exactly; the name suffix follows.
+	e.PrefixLen = sniCgroupBits + uint32(len(raw))*8
+	e.CgroupID = cgroupID
 	copy(e.Name[:], raw)
 	return e, nil
 }

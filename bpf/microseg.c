@@ -219,12 +219,35 @@ struct {
 //                   are short, fixed-vocabulary (h2, http/1.1, h3,
 //                   imap, smtp, ...) and never wildcarded, so the
 //                   cheaper hash lookup wins.
-#define MAX_SNI_NAME_BYTES 256
+// LPM_TRIE keys are capped by the kernel at key_size <= 260 (a 4-byte
+// prefix_len header + <=256 bytes of data), and the in-kernel parser
+// bounds the reversed-name write with a bitwise mask, which requires a
+// power-of-two buffer. With a leading 8-byte cgroup_id now sharing the
+// key, 128 is the largest power of two that keeps the write mask valid
+// (key_size = 4 + 8 + 128 = 140). 128 bytes comfortably covers real SNI
+// hostnames (domain names, almost always < 64 bytes).
+#define MAX_SNI_NAME_BYTES 128
+
+// cgroup_id is prepended to both L7 deny keys so a policy can scope an
+// SNI/ALPN denial to one workload (cgroup) instead of the whole host.
+// A cgroup_id of 0 is the GLOBAL entry: the datapath first looks up the
+// packet's own cgroup_id, then falls back to 0, so host-wide rules and
+// per-workload rules coexist. Mirrors POLICY_HEADER_BITS scoping on the
+// L3/L4 maps.
+#define SNI_CGROUP_BITS 64      // sizeof(cgroup_id) * 8
 
 struct sni_lpm_key {
     __u32 prefix_len;            // bits, NOT bytes (LPM convention)
+    __u64 cgroup_id;            // 0 = global, else per-workload scope
     __u8  name[MAX_SNI_NAME_BYTES];
 } __attribute__((packed));
+
+// tls_alpn_deny key: (cgroup_id, FNV-1a hash of the ALPN id). Same
+// per-cgroup + global-fallback scheme as the SNI trie above.
+struct alpn_key {
+    __u64 cgroup_id;
+    __u64 hash;
+};
 
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
@@ -237,7 +260,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, __u64);
+    __type(key, struct alpn_key);
     __type(value, struct policy_value);
     __uint(max_entries, 1024);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
@@ -398,11 +421,12 @@ static long sni_load_byte(__u32 i, struct sni_load_ctx *ctx)
     // clients already send lowercase, but normalising in-kernel makes
     // userspace policy authoring simpler.
     if (b >= 'A' && b <= 'Z') b += 32;
-    // Reverse: position from the end of the input. The
-    // unconditional mask is what the verifier accepts as a proof
-    // that `j` fits the 256-byte buffer — caller already enforces
-    // src_len <= MAX_SNI_NAME_BYTES so the mask is semantically a
-    // no-op for valid inputs, but it's load-bearing for the verifier.
+    // Reverse: position from the end of the input. The unconditional
+    // mask is what the verifier accepts as a proof that `j` fits the
+    // MAX_SNI_NAME_BYTES buffer (power of two) — an explicit `if (j >=
+    // N)` does NOT propagate the bound to the pointer offset and the
+    // verifier rejects the write. Caller enforces src_len <=
+    // MAX_SNI_NAME_BYTES so the mask is a no-op for valid inputs.
     __u32 j = (ctx->src_len - 1 - i) & (MAX_SNI_NAME_BYTES - 1);
     ctx->key->name[j] = b;
     return 0;
@@ -412,7 +436,8 @@ static long sni_load_byte(__u32 i, struct sni_load_ctx *ctx)
 // skb matches a deny entry in tls_sni_lpm. False on any failure
 // (read error, oversized name, no match).
 static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
-                                          __u32 off, __u16 len)
+                                          __u32 off, __u16 len,
+                                          __u64 cgroup_id)
 {
     if (len == 0 || len > MAX_SNI_NAME_BYTES) return false;
 
@@ -426,10 +451,10 @@ static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
     //      the match.
     //   2. The lookup's prefix_len must be >= every entry's prefix_len
     //      for that entry to be eligible. Setting it to the full
-    //      MAX_SNI_NAME_BYTES * 8 makes every populated entry
-    //      reachable; the kernel still picks the longest match.
+    //      cgroup_id + MAX_SNI_NAME_BYTES bits makes every populated
+    //      entry reachable; the kernel still picks the longest match.
     __builtin_memset(key, 0, sizeof(*key));
-    key->prefix_len = MAX_SNI_NAME_BYTES * 8;
+    key->prefix_len = SNI_CGROUP_BITS + MAX_SNI_NAME_BYTES * 8;
 
     struct sni_load_ctx ctx = {
         .skb = skb,
@@ -439,7 +464,15 @@ static __always_inline bool sni_lpm_check(struct __sk_buff *skb,
     };
     bpf_loop(MAX_SNI_NAME_BYTES, sni_load_byte, &ctx, 0);
 
+    // Per-cgroup scope first, then the host-wide (cgroup_id == 0) entry.
+    // The cgroup_id occupies the leading 64 bits of the key, so an entry
+    // scoped to cgroup X can only match a lookup carrying cgroup X.
+    key->cgroup_id = cgroup_id;
     struct policy_value *pv = bpf_map_lookup_elem(&tls_sni_lpm, key);
+    if ((!pv || pv->verdict != V_DROP) && cgroup_id != 0) {
+        key->cgroup_id = 0;
+        pv = bpf_map_lookup_elem(&tls_sni_lpm, key);
+    }
     return pv && pv->verdict == V_DROP;
 }
 
@@ -450,6 +483,7 @@ struct ext_loop_ctx {
     struct __sk_buff *skb;
     __u32 off;
     __u32 ext_end;
+    __u64 cgroup_id;   // scope for the SNI/ALPN deny lookups
     __u8  reason;
 };
 
@@ -468,7 +502,7 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
         if (name_type != 0) return 0;
         __u16 name_len = load_be16(ctx->skb, ext_data + 3);
         if (name_len == 0 || name_len > MAX_SNI_NAME_BYTES) return 0;
-        if (sni_lpm_check(ctx->skb, ext_data + 5, name_len)) {
+        if (sni_lpm_check(ctx->skb, ext_data + 5, name_len, ctx->cgroup_id)) {
             ctx->reason = DR_SNI_DENY;
             return 1;
         }
@@ -483,7 +517,13 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
             __u8 plen = load_u8(ctx->skb, ap);
             if (plen > 0 && plen <= MAX_TLS_HASH_BYTES) {
                 __u64 h = fnv64a(ctx->skb, ap + 1, plen);
-                struct policy_value *pv = bpf_map_lookup_elem(&tls_alpn_deny, &h);
+                // Per-cgroup scope first, host-wide (cgroup_id 0) fallback.
+                struct alpn_key ak = { .cgroup_id = ctx->cgroup_id, .hash = h };
+                struct policy_value *pv = bpf_map_lookup_elem(&tls_alpn_deny, &ak);
+                if ((!pv || pv->verdict != V_DROP) && ctx->cgroup_id != 0) {
+                    ak.cgroup_id = 0;
+                    pv = bpf_map_lookup_elem(&tls_alpn_deny, &ak);
+                }
                 if (pv && pv->verdict == V_DROP) {
                     ctx->reason = DR_ALPN_DENY;
                     return 1;
@@ -499,7 +539,8 @@ static long walk_extension(__u32 i, struct ext_loop_ctx *ctx)
 // otherwise — including all malformed / non-TLS cases, since peeking is
 // a best-effort augmentation, not a primary verdict.
 static __always_inline __u8 tls_check(struct __sk_buff *skb,
-                                      __u32 payload_off, __u32 payload_len)
+                                      __u32 payload_off, __u32 payload_len,
+                                      __u64 cgroup_id)
 {
     // Need at minimum: TLS record header (5) + handshake header (4) +
     // client_version (2) + random (32) = 43 bytes.
@@ -537,7 +578,8 @@ static __always_inline __u8 tls_check(struct __sk_buff *skb,
     // Drive the extension walk through bpf_loop so the verifier sees
     // a single iteration callback instead of an unrolled body × N.
     struct ext_loop_ctx ctx = {
-        .skb = skb, .off = off, .ext_end = ext_end, .reason = DR_NONE,
+        .skb = skb, .off = off, .ext_end = ext_end,
+        .cgroup_id = cgroup_id, .reason = DR_NONE,
     };
     bpf_loop(MAX_TLS_EXTENSIONS, walk_extension, &ctx, 0);
     return ctx.reason;
@@ -763,7 +805,7 @@ static __always_inline int handle_v4(struct __sk_buff *skb, __u8 dir)
                 __u32 payload_off = (ip->ihl * 4) + (tcp_doff * 4);
                 __u32 total = skb->len;
                 if (total > payload_off) {
-                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off);
+                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off, cgid);
                     if (tls_r != DR_NONE) {
                         verdict = V_DROP;
                         drop_reason = tls_r;
@@ -891,7 +933,7 @@ static __always_inline int handle_v6(struct __sk_buff *skb, __u8 dir)
                 __u32 payload_off = sizeof(struct ipv6hdr) + (tcp_doff * 4);
                 __u32 total = skb->len;
                 if (total > payload_off) {
-                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off);
+                    __u8 tls_r = tls_check(skb, payload_off, total - payload_off, cgid);
                     if (tls_r != DR_NONE) {
                         verdict = V_DROP;
                         drop_reason = tls_r;
