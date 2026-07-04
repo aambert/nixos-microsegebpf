@@ -100,7 +100,16 @@ func main() {
 			continue
 		}
 		sport, dport := l4Ports(f)
-		fmt.Printf("  %-10s %-7s %s:%d -> %s:%d  src=%s dst=%s policy=%d\n",
+		// Surface the L7 DNS query and the detailed drop reason when the
+		// agent populated them (Phase A: L7 DNS + drop reasons).
+		extra := ""
+		if q := f.GetL7().GetDns().GetQuery(); q != "" {
+			extra += "  dns=" + q
+		}
+		if f.GetVerdict() == flowpb.Verdict_DROPPED {
+			extra += "  drop=" + f.GetDropReasonDesc().String()
+		}
+		fmt.Printf("  %-10s %-7s %s:%d -> %s:%d  src=%s dst=%s policy=%d%s\n",
 			f.Verdict.String(),
 			f.TrafficDirection.String(),
 			f.GetIP().GetSource(), sport,
@@ -108,6 +117,7 @@ func main() {
 			endpointLabel(f.GetSource()),
 			endpointLabel(f.GetDestination()),
 			f.GetEventType().GetSubType(),
+			extra,
 		)
 	}
 }

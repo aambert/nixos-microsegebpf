@@ -24,20 +24,27 @@ type MicrosegDefaultCfg struct {
 	TlsPorts              [8]uint16
 }
 
+type MicrosegDnsNameBuf struct {
+	_    structs.HostLayout
+	Name [64]uint8
+}
+
 type MicrosegFlowEvent struct {
-	_         structs.HostLayout
-	TsNs      uint64
-	CgroupId  uint64
-	Family    uint8
-	Direction uint8
-	Verdict   uint8
-	Protocol  uint8
-	SrcPort   uint16
-	DstPort   uint16
-	PolicyId  uint32
-	SrcIp     [16]uint8
-	DstIp     [16]uint8
-	_         [4]byte
+	_          structs.HostLayout
+	TsNs       uint64
+	CgroupId   uint64
+	Family     uint8
+	Direction  uint8
+	Verdict    uint8
+	Protocol   uint8
+	SrcPort    uint16
+	DstPort    uint16
+	PolicyId   uint32
+	SrcIp      [16]uint8
+	DstIp      [16]uint8
+	DropReason uint8
+	L7DnsName  [64]uint8
+	_          [3]byte
 }
 
 type MicrosegLpmV4Key struct {
@@ -121,6 +128,7 @@ type MicrosegProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type MicrosegMapSpecs struct {
+	DnsScratch    *ebpf.MapSpec `ebpf:"dns_scratch"`
 	DroppedEvents *ebpf.MapSpec `ebpf:"dropped_events"`
 	EgressV4      *ebpf.MapSpec `ebpf:"egress_v4"`
 	EgressV6      *ebpf.MapSpec `ebpf:"egress_v6"`
@@ -163,6 +171,7 @@ func (o *MicrosegObjects) Close() error {
 //
 // It can be passed to LoadMicrosegObjects or ebpf.CollectionSpec.LoadAndAssign.
 type MicrosegMaps struct {
+	DnsScratch    *ebpf.Map `ebpf:"dns_scratch"`
 	DroppedEvents *ebpf.Map `ebpf:"dropped_events"`
 	EgressV4      *ebpf.Map `ebpf:"egress_v4"`
 	EgressV6      *ebpf.Map `ebpf:"egress_v6"`
@@ -177,6 +186,7 @@ type MicrosegMaps struct {
 
 func (m *MicrosegMaps) Close() error {
 	return _MicrosegClose(
+		m.DnsScratch,
 		m.DroppedEvents,
 		m.EgressV4,
 		m.EgressV6,
